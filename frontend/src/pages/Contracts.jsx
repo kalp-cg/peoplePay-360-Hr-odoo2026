@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { FileText, Plus, CheckCircle, Clock, Calendar, AlertCircle, X, ArrowRight } from 'lucide-react';
 import api from '../api/client';
 import ControlPanel from '../components/ControlPanel';
+import { formatDateDMY } from '../utils/formatters';
 
 export default function Contracts() {
   const [contracts, setContracts] = useState([]);
@@ -150,10 +151,10 @@ export default function Contracts() {
                     {c.employee?.name} <span className="text-[11px] text-slate-400">({c.employee?.employeeId})</span>
                   </td>
                   <td className="px-4 py-3">{c.employee?.department?.name}</td>
-                  <td className="px-4 py-3 font-mono">{new Date(c.startDate).toLocaleDateString()}</td>
+                  <td className="px-4 py-3 font-mono">{formatDateDMY(c.startDate)}</td>
                   <td className="px-4 py-3 font-mono">
                     {c.endDate ? (
-                      new Date(c.endDate).toLocaleDateString()
+                      formatDateDMY(c.endDate)
                     ) : (
                       <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
                         Ongoing

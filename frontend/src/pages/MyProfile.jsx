@@ -8,6 +8,7 @@ import { Link } from 'react-router-dom';
 import api from '../api/client';
 import ControlPanel from '../components/ControlPanel';
 import { useAuth } from '../context/AuthContext';
+import { formatDateDMY } from '../utils/formatters';
 
 export default function MyProfile() {
   const { user } = useAuth();
@@ -221,7 +222,7 @@ export default function MyProfile() {
                 <div className="flex items-center justify-between py-1 border-b border-slate-50">
                   <span className="text-slate-500 font-medium">Joining Date</span>
                   <span className="font-mono text-slate-900">
-                    {employee?.joiningDate ? new Date(employee.joiningDate).toLocaleDateString() : '01/01/2026'}
+                    {formatDateDMY(employee?.joiningDate || '2026-01-01')}
                   </span>
                 </div>
                 <div className="flex items-center justify-between py-1 border-b border-slate-50">
@@ -325,7 +326,7 @@ export default function MyProfile() {
                   requests.map((req) => (
                     <tr key={req.id} className="hover:bg-slate-50">
                       <td className="px-4 py-3 font-mono text-slate-600">
-                        {new Date(req.createdAt).toLocaleDateString()}
+                        {formatDateDMY(req.createdAt)}
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex flex-wrap gap-1.5 max-w-md">

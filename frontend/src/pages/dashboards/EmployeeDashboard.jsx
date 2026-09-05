@@ -7,13 +7,14 @@ import {
 } from 'lucide-react';
 import api from '../../api/client';
 import { useAuth } from '../../context/AuthContext';
+import { formatDateDMY, formatPeriodRange } from '../../utils/formatters';
 
 export default function EmployeeDashboard() {
   const { user } = useAuth();
   const [employee, setEmployee] = useState(null);
   const [attendanceLogs, setAttendanceLogs] = useState([]);
   const [allocations, setAllocations] = useState([]);
-  const [payslips, setPayslips] = useState([]);
+  const [pastPayslips, setPastPayslips] = useState([]);
   const [attStatus, setAttStatus] = useState({ 
     checkedIn: false, 
     elapsedHours: 0, 
@@ -43,7 +44,7 @@ export default function EmployeeDashboard() {
   });
   const [submittingLeave, setSubmittingLeave] = useState(false);
 
-  // All Payslips Modal
+  // All Historical Payslips Modal
   const [showAllPayslipsModal, setShowAllPayslipsModal] = useState(false);
 
   const [toast, setToast] = useState(null);
@@ -54,60 +55,48 @@ export default function EmployeeDashboard() {
 
   // Live timer tick every 1000ms when checked in
   useEffect(() => {
-    const timer = setInterval(() => {
-      setCurrentTime(Date.now());
-    }, 1000);
-    return () => clearInterval(timer);
-  }, []);
-
-  async function fetchAttendanceStatus() {
-    try {
-      const res = await api.get('/attendance/current-status');
-      if (res.data) {
-        setAttStatus({
-          checkedIn: res.data.checkedIn,
-          elapsedHours: res.data.elapsedHours || 0,
-          workedHours: res.data.workedHours || res.data.elapsedHours || 0,
-          hasCheckedInToday: res.data.hasCheckedInToday ?? Boolean(res.data.checkInTime),
-          hasCheckedOutToday: res.data.hasCheckedOutToday ?? Boolean(res.data.checkOutTime),
-          loading: false,
-          checkInTime: res.data.checkInTime,
-          checkOutTime: res.data.checkOutTime,
-        });
-      }
-    } catch (err) {
-      console.warn('[Attendance status]:', err);
+    let timer = null;
+    if (attStatus.checkedIn) {
+      timer = setInterval(() => {
+        setCurrentTime(Date.now());
+      }, 1000);
     }
-  }
+    return () => {
+      if (timer) clearInterval(timer);
+    };
+  }, [attStatus.checkedIn]);
 
+  // Fast single-roundtrip portal fetch
   async function fetchEmployeePortalData() {
     setLoading(true);
     try {
-      const [empRes, attRes, allocRes, slipRes, typesRes, reqsRes] = await Promise.all([
-        api.get('/employees'),
-        api.get('/attendance'),
-        api.get('/time-off/allocations'),
-        api.get('/payslips'),
-        api.get('/time-off/types'),
-        api.get('/employees/profile-change-requests').catch(() => ({ data: [] })),
-      ]);
+      const res = await api.get('/dashboard/employee-portal');
+      const d = res.data;
+      if (d) {
+        setEmployee(d.employee);
+        setAttendanceLogs(d.attendanceLogs || []);
+        setAllocations(d.allocations || []);
+        setPastPayslips(d.pastPayslips || []);
+        setLeaveTypes(d.leaveTypes || []);
+        setPendingRequests(d.pendingRequests || []);
 
-      const self = empRes.data.find(e => e.id === user?.employeeId) || empRes.data[0];
-      if (self) {
-        const fullDetail = await api.get(`/employees/${self.id}`);
-        setEmployee(fullDetail.data);
+        if (d.attStatus) {
+          setAttStatus({
+            checkedIn: d.attStatus.checkedIn,
+            elapsedHours: d.attStatus.elapsedHours || 0,
+            workedHours: d.attStatus.workedHours || d.attStatus.elapsedHours || 0,
+            hasCheckedInToday: d.attStatus.hasCheckedInToday ?? Boolean(d.attStatus.checkInTime),
+            hasCheckedOutToday: d.attStatus.hasCheckedOutToday ?? Boolean(d.attStatus.checkOutTime),
+            loading: false,
+            checkInTime: d.attStatus.checkInTime,
+            checkOutTime: d.attStatus.checkOutTime,
+          });
+        }
+
+        if (d.leaveTypes?.length > 0 && !leaveForm.timeOffTypeId) {
+          setLeaveForm(prev => ({ ...prev, timeOffTypeId: d.leaveTypes[0].id }));
+        }
       }
-      setAttendanceLogs(attRes.data.slice(0, 5));
-      setAllocations(allocRes.data);
-      setPayslips(slipRes.data || []);
-      setLeaveTypes(typesRes.data);
-      setPendingRequests(reqsRes.data.filter(r => r.status === 'PENDING'));
-
-      if (typesRes.data.length > 0) {
-        setLeaveForm(prev => ({ ...prev, timeOffTypeId: typesRes.data[0].id }));
-      }
-
-      await fetchAttendanceStatus();
     } catch (err) {
       console.error('Failed to load employee portal data:', err);
     } finally {
@@ -118,8 +107,8 @@ export default function EmployeeDashboard() {
   async function handleToggleAttendance() {
     setAttStatus(prev => ({ ...prev, loading: true }));
     try {
-      const res = await api.post('/attendance/quick-toggle');
-      await Promise.all([fetchAttendanceStatus(), fetchEmployeePortalData()]);
+      await api.post('/attendance/quick-toggle');
+      await fetchEmployeePortalData();
       
       const wasCheckedIn = attStatus.checkedIn;
       setToast({
@@ -165,11 +154,8 @@ export default function EmployeeDashboard() {
       setToast({ type: 'success', message: 'Time off request submitted to HR Manager for review.' });
       setTimeout(() => setToast(null), 4500);
 
-      const [updatedAlloc, updatedReqs] = await Promise.all([
-        api.get('/time-off/allocations'),
-        api.get('/time-off/requests'),
-      ]);
-      setAllocations(updatedAlloc.data);
+      // Fast reload
+      await fetchEmployeePortalData();
     } catch (err) {
       alert(err.message || 'Failed to submit time off request.');
     } finally {
@@ -180,8 +166,7 @@ export default function EmployeeDashboard() {
   // Active Contract
   const activeContract = employee?.contracts?.find(c => c.status === 'ACTIVE') || employee?.contracts?.[0];
 
-  // Filter Past Payslips (Non-Draft, ordered latest first)
-  const pastPayslips = (payslips || []).filter(p => p.status !== 'DRAFT');
+  // Top 3 genuine past payslips
   const top3Payslips = pastPayslips.slice(0, 3);
 
   // Live Timer Computations
@@ -232,6 +217,13 @@ export default function EmployeeDashboard() {
             <span className="text-xs text-slate-500 hidden sm:inline">
               ID: <b className="text-slate-700 font-mono">{employee?.employeeId || user?.email}</b>
             </span>
+            <button
+              onClick={fetchEmployeePortalData}
+              title="Refresh Dashboard"
+              className="p-1.5 rounded text-slate-500 hover:text-[#714B67] hover:bg-slate-100 transition-colors"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+            </button>
             <Link
               to="/my-profile"
               className="btn-outline text-xs flex items-center gap-1.5"
@@ -420,14 +412,14 @@ export default function EmployeeDashboard() {
         {/* Middle Section: Last 3 Past Payslips + Attendance Recent Records */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           
-          {/* PAST PAYSLIPS STATEMENT CARD (LAST 3 PAYSLIPS + VIEW MORE) */}
+          {/* PAST PAYSLIPS STATEMENT CARD (LAST 3 GENUINE PAST PAYSLIPS + VIEW MORE) */}
           <div className="bg-white border border-slate-200 rounded-lg shadow-xs p-5 space-y-4">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div className="flex items-center gap-2">
                 <FileText className="w-4 h-4 text-[#714B67]" />
                 <div>
                   <h3 className="font-bold text-sm text-[#2C3E50]">Past Payslip Statements</h3>
-                  <p className="text-[11px] text-slate-500">Recent Disbursed / Historical Payslips</p>
+                  <p className="text-[11px] text-slate-500">Last 3 Disbursed Salary Cycles (Completed Months)</p>
                 </div>
               </div>
               
@@ -444,7 +436,7 @@ export default function EmployeeDashboard() {
 
             {top3Payslips.length > 0 ? (
               <div className="space-y-3 text-xs">
-                {top3Payslips.map((slip, idx) => (
+                {top3Payslips.map((slip) => (
                   <div 
                     key={slip.id} 
                     className="p-3.5 rounded-lg border border-slate-200 hover:border-slate-300 transition-colors bg-slate-50/50 flex items-center justify-between gap-3"
@@ -454,11 +446,7 @@ export default function EmployeeDashboard() {
                         <span className="font-mono text-[11px] font-semibold text-slate-700 bg-white px-1.5 py-0.5 rounded border border-slate-200">
                           {slip.payslipNumber}
                         </span>
-                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
-                          slip.status === 'PAID'
-                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                            : 'bg-teal-50 text-[#00A09D] border-[#00A09D]/30'
-                        }`}>
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border bg-emerald-50 text-emerald-700 border-emerald-200">
                           {slip.status}
                         </span>
                       </div>
@@ -468,7 +456,8 @@ export default function EmployeeDashboard() {
                       </div>
 
                       <div className="text-[11px] text-slate-500">
-                        Gross: <span className="font-mono text-slate-700">₹{slip.grossSalary?.toLocaleString()}</span>
+                        Period: <span className="font-mono font-medium text-slate-700">{formatPeriodRange(slip.payrun?.periodStart, slip.payrun?.periodEnd)}</span>
+                        {' '}• Gross: <span className="font-mono text-slate-700">₹{slip.grossSalary?.toLocaleString()}</span>
                         {' '}• Deductions: <span className="font-mono text-rose-600">-₹{slip.totalDeductions?.toLocaleString()}</span>
                       </div>
                     </div>
@@ -532,7 +521,7 @@ export default function EmployeeDashboard() {
                 <table className="w-full text-left text-xs">
                   <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold uppercase text-[10px]">
                     <tr>
-                      <th className="px-3 py-2.5">Date</th>
+                      <th className="px-3 py-2.5">Date (DD/MM/YYYY)</th>
                       <th className="px-3 py-2.5">Check In</th>
                       <th className="px-3 py-2.5">Check Out</th>
                       <th className="px-3 py-2.5">Worked Hours</th>
@@ -542,7 +531,7 @@ export default function EmployeeDashboard() {
                   <tbody className="divide-y divide-slate-100 text-slate-700">
                     {attendanceLogs.map((att) => (
                       <tr key={att.id} className="hover:bg-slate-50">
-                        <td className="px-3 py-2.5 font-medium font-mono">{new Date(att.date).toLocaleDateString()}</td>
+                        <td className="px-3 py-2.5 font-medium font-mono">{formatDateDMY(att.date)}</td>
                         <td className="px-3 py-2.5 font-mono text-slate-600">{att.checkIn ? new Date(att.checkIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '-'}</td>
                         <td className="px-3 py-2.5 font-mono text-slate-600">{att.checkOut ? new Date(att.checkOut).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '-'}</td>
                         <td className="px-3 py-2.5 font-mono font-bold text-teal-700">
@@ -586,7 +575,7 @@ export default function EmployeeDashboard() {
                 <FileText className="w-5 h-5 text-[#714B67]" />
                 <div>
                   <h3 className="font-bold text-sm text-[#2C3E50]">All Historical Payslips Archive</h3>
-                  <p className="text-[11px] text-slate-500">Access and download all past month salary statements</p>
+                  <p className="text-[11px] text-slate-500">Access and download all past month salary statements (DD/MM/YYYY)</p>
                 </div>
               </div>
               <button 
@@ -602,7 +591,7 @@ export default function EmployeeDashboard() {
                 <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold uppercase text-[10px]">
                   <tr>
                     <th className="px-3 py-2.5">Payslip Number</th>
-                    <th className="px-3 py-2.5">Payrun / Period</th>
+                    <th className="px-3 py-2.5">Payrun / Period (DD/MM/YYYY)</th>
                     <th className="px-3 py-2.5">Gross</th>
                     <th className="px-3 py-2.5">Deductions</th>
                     <th className="px-3 py-2.5">Net Disbursed</th>
@@ -616,19 +605,15 @@ export default function EmployeeDashboard() {
                       <td className="px-3 py-3 font-mono font-semibold text-slate-900">{slip.payslipNumber}</td>
                       <td className="px-3 py-3">
                         <div className="font-medium text-slate-800">{slip.payrun?.name || 'Payroll Cycle'}</div>
-                        <div className="text-[10px] text-slate-400 font-mono">
-                          {slip.payrun?.periodStart ? new Date(slip.payrun.periodStart).toLocaleDateString() : ''} - {slip.payrun?.periodEnd ? new Date(slip.payrun.periodEnd).toLocaleDateString() : ''}
+                        <div className="text-[10px] text-slate-500 font-mono">
+                          {formatPeriodRange(slip.payrun?.periodStart, slip.payrun?.periodEnd)}
                         </div>
                       </td>
                       <td className="px-3 py-3 font-mono">₹{slip.grossSalary?.toLocaleString()}</td>
                       <td className="px-3 py-3 font-mono text-rose-600">-₹{slip.totalDeductions?.toLocaleString()}</td>
                       <td className="px-3 py-3 font-mono font-bold text-teal-700">₹{slip.netSalary?.toLocaleString()}</td>
                       <td className="px-3 py-3">
-                        <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full border ${
-                          slip.status === 'PAID'
-                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                            : 'bg-teal-50 text-[#00A09D] border-[#00A09D]/30'
-                        }`}>
+                        <span className="px-2 py-0.5 text-[10px] font-bold rounded-full border bg-emerald-50 text-emerald-700 border-emerald-200">
                           {slip.status}
                         </span>
                       </td>

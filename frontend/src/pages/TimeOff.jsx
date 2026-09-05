@@ -3,6 +3,7 @@ import { Plane, Plus, CheckCircle, XCircle, Clock, Check, AlertCircle, X } from 
 import api from '../api/client';
 import ControlPanel from '../components/ControlPanel';
 import { useAuth } from '../context/AuthContext';
+import { formatPeriodRange } from '../utils/formatters';
 
 export default function TimeOff() {
   const { user } = useAuth();
@@ -228,7 +229,7 @@ export default function TimeOff() {
                     )}
                     <td className="px-4 py-3 font-medium text-[#714B67]">{req.timeOffType?.name}</td>
                     <td className="px-4 py-3 font-mono">
-                      {new Date(req.startDate).toLocaleDateString()} - {new Date(req.endDate).toLocaleDateString()}
+                      {formatPeriodRange(req.startDate, req.endDate)}
                     </td>
                     <td className="px-4 py-3 font-bold text-slate-800">{req.durationDays} Days</td>
                     <td className="px-4 py-3 text-slate-500 max-w-[200px] truncate" title={req.reason}>

@@ -7,5 +7,6 @@ const router = express.Router();
 router.use(authenticate);
 
 router.get('/', (req, res, next) => dashboardController.getDashboard(req, res, next));
+router.get('/employee-portal', (req, res, next) => dashboardController.getEmployeePortal(req, res, next));
 
 module.exports = router;

@@ -6,6 +6,7 @@ import {
 import api from '../api/client';
 import ControlPanel from '../components/ControlPanel';
 import { useAuth } from '../context/AuthContext';
+import { formatDateDMY } from '../utils/formatters';
 
 export default function Attendance() {
   const { user } = useAuth();
@@ -296,7 +297,7 @@ export default function Attendance() {
                 filtered.map((rec) => (
                   <tr key={rec.id} className="hover:bg-slate-50 transition-colors">
                     <td className="px-4 py-3 tabular-nums font-medium text-slate-900 font-mono">
-                      {new Date(rec.date).toLocaleDateString()}
+                      {formatDateDMY(rec.date)}
                     </td>
                     {!isEmployee && (
                       <td className="px-4 py-3">

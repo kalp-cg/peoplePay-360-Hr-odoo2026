@@ -8,6 +8,7 @@ import {
   LineChart, Line 
 } from 'recharts';
 import { Link } from 'react-router-dom';
+import { formatPeriodRange } from '../../utils/formatters';
 import api from '../../api/client';
 import ControlPanel from '../../components/ControlPanel';
 import { useAuth } from '../../context/AuthContext';
@@ -232,7 +233,7 @@ export default function PayrollDashboard() {
                   recentPayruns.map((pr) => (
                     <tr key={pr.id} className="hover:bg-slate-50">
                       <td className="px-4 py-3 font-semibold text-slate-900">{pr.name}</td>
-                      <td className="px-4 py-3 font-mono text-[11px]">{new Date(pr.periodStart).toLocaleDateString()} - {new Date(pr.periodEnd).toLocaleDateString()}</td>
+                      <td className="px-4 py-3 font-mono text-[11px]">{formatPeriodRange(pr.periodStart, pr.periodEnd)}</td>
                       <td className="px-4 py-3 font-mono font-bold text-teal-700">₹{Number(pr.totalNet || 0).toLocaleString()}</td>
                       <td className="px-4 py-3 font-mono">{pr.payslips?.length || 0}</td>
                       <td className="px-4 py-3 text-right">

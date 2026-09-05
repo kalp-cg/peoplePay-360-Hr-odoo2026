@@ -7,6 +7,7 @@ import {
 import api from '../api/client';
 import ControlPanel from '../components/ControlPanel';
 import { useAuth } from '../context/AuthContext';
+import { formatPeriodRange } from '../utils/formatters';
 
 export default function Payruns() {
   const { user } = useAuth();
@@ -274,7 +275,7 @@ export default function Payruns() {
     <div className="min-h-screen bg-[#F8F9FA] pb-12">
       <ControlPanel
         title={selectedPayrun ? selectedPayrun.name : "Payroll Payruns"}
-        subtitle={selectedPayrun ? `${new Date(selectedPayrun.periodStart).toLocaleDateString()} - ${new Date(selectedPayrun.periodEnd).toLocaleDateString()}` : "Batch Salary Processing & Payslip Generation"}
+        subtitle={selectedPayrun ? formatPeriodRange(selectedPayrun.periodStart, selectedPayrun.periodEnd) : "Batch Salary Processing & Payslip Generation"}
         breadcrumbs={
           selectedPayrun
             ? [{ label: 'Payruns', link: '#' }, { label: selectedPayrun.name }]
@@ -321,7 +322,7 @@ export default function Payruns() {
                 </div>
                 <p className="text-xs text-slate-500 mt-1">
                   Structure: <span className="font-semibold text-slate-700">{selectedPayrun.salaryStructure?.name}</span> •
-                  Period: <span className="font-mono">{new Date(selectedPayrun.periodStart).toLocaleDateString()} - {new Date(selectedPayrun.periodEnd).toLocaleDateString()}</span>
+                  Period: <span className="font-mono">{formatPeriodRange(selectedPayrun.periodStart, selectedPayrun.periodEnd)}</span>
                 </p>
               </div>
 
@@ -571,7 +572,7 @@ export default function Payruns() {
                     </td>
                     <td className="px-4 py-3">{pr.salaryStructure?.name}</td>
                     <td className="px-4 py-3 font-mono text-slate-500">
-                      {new Date(pr.periodStart).toLocaleDateString()} - {new Date(pr.periodEnd).toLocaleDateString()}
+                      {formatPeriodRange(pr.periodStart, pr.periodEnd)}
                     </td>
                     <td className="px-4 py-3 font-mono font-medium">₹{pr.totalGross?.toLocaleString() || 0}</td>
                     <td className="px-4 py-3 font-mono font-bold text-teal-700 text-sm">₹{pr.totalNet?.toLocaleString() || 0}</td>
