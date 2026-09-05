@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import { 
   Users, Plus, FileText, Clock, Plane, DollarSign, 
   Mail, Phone, Building, Briefcase, Calendar, CheckCircle, 
@@ -12,6 +13,9 @@ import { useAuth } from '../context/AuthContext';
 
 export default function Employees() {
   const { user } = useAuth();
+  const navigate = useNavigate();
+  const { id: routeEmployeeId } = useParams();
+
   const isEmployee = user?.role === 'EMPLOYEE';
   const canManageEmployees = ['ADMIN', 'HR_MANAGER'].includes(user?.role);
 
@@ -83,16 +87,26 @@ export default function Employees() {
     fetchMetadata();
   }, []);
 
+  useEffect(() => {
+    if (routeEmployeeId) {
+      fetchEmployeeDetail(routeEmployeeId);
+    } else if (!isEmployee) {
+      setSelectedEmployee(null);
+    }
+  }, [routeEmployeeId]);
+
   async function fetchEmployees() {
     setLoading(true);
     try {
       const res = await api.get('/employees');
       setEmployees(res.data);
 
-      if (isEmployee && res.data.length > 0) {
+      if (routeEmployeeId) {
+        fetchEmployeeDetail(routeEmployeeId);
+      } else if (isEmployee && res.data.length > 0) {
         const self = res.data.find(e => e.id === user.employeeId) || res.data[0];
         if (self) {
-          handleSelectEmployee(self);
+          fetchEmployeeDetail(self.id);
         }
       }
     } catch (err) {
@@ -102,36 +116,20 @@ export default function Employees() {
     }
   }
 
-  async function fetchMetadata() {
-    try {
-      const [deptRes, schedRes, structRes] = await Promise.all([
-        api.get('/departments'),
-        api.get('/schedules'),
-        api.get('/salary/structures'),
-      ]);
-      setDepartments(deptRes.data);
-      setSchedules(schedRes.data);
-      setStructures(structRes.data);
-
-      if (structRes.data.length > 0) {
-        setFormData(prev => ({ ...prev, salaryStructureId: String(structRes.data[0].id) }));
-        setContractFormData(prev => ({ ...prev, salaryStructureId: String(structRes.data[0].id) }));
-      }
-    } catch (err) {
-      console.error('Failed to fetch metadata:', err);
-    }
-  }
-
-  async function handleSelectEmployee(emp) {
+  async function fetchEmployeeDetail(id) {
     setLoadingDetails(true);
     try {
-      const res = await api.get(`/employees/${emp.id}`);
+      const res = await api.get(`/employees/${id}`);
       setSelectedEmployee(res.data);
     } catch (err) {
       console.error('Failed to load employee details:', err);
     } finally {
       setLoadingDetails(false);
     }
+  }
+
+  function handleSelectEmployee(emp) {
+    navigate(`/employees/${emp.id}`);
   }
 
   function openCreateModal() {

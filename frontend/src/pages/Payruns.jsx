@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import {
   DollarSign, Plus, Play, CheckCircle2, AlertTriangle,
   Send, FileDown, Check, ArrowLeft, X, Eye, ShieldAlert,
@@ -11,6 +12,9 @@ import { formatPeriodRange } from '../utils/formatters';
 
 export default function Payruns() {
   const { user } = useAuth();
+  const navigate = useNavigate();
+  const { id: routePayrunId } = useParams();
+
   const [payruns, setPayruns] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedPayrun, setSelectedPayrun] = useState(null);
@@ -41,15 +45,35 @@ export default function Payruns() {
     fetchStructures();
   }, []);
 
+  useEffect(() => {
+    if (routePayrunId) {
+      loadPayrunDetail(routePayrunId);
+    } else {
+      setSelectedPayrun(null);
+    }
+  }, [routePayrunId]);
+
   async function fetchPayruns() {
     setLoading(true);
     try {
       const res = await api.get('/payruns');
       setPayruns(res.data);
+      if (routePayrunId) {
+        loadPayrunDetail(routePayrunId);
+      }
     } catch (err) {
       console.error(err);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function loadPayrunDetail(id) {
+    try {
+      const res = await api.get(`/payruns/${id}`);
+      setSelectedPayrun(res.data);
+    } catch (err) {
+      console.error(err);
     }
   }
 
@@ -65,13 +89,13 @@ export default function Payruns() {
     }
   }
 
-  async function handleOpenPayrun(id) {
-    try {
-      const res = await api.get(`/payruns/${id}`);
-      setSelectedPayrun(res.data);
-    } catch (err) {
-      console.error(err);
-    }
+  function handleOpenPayrun(id) {
+    navigate(`/payroll/payruns/${id}`);
+  }
+
+  function handleBackToPayruns() {
+    setSelectedPayrun(null);
+    navigate('/payroll');
   }
 
   // WIZARD STEP 1 -> STEP 2: Fetch eligible employees
@@ -283,7 +307,7 @@ export default function Payruns() {
         }
         actions={
           selectedPayrun ? (
-            <button onClick={() => setSelectedPayrun(null)} className="btn-outline text-xs">
+            <button onClick={handleBackToPayruns} className="btn-outline text-xs">
               <ArrowLeft className="w-3.5 h-3.5" />
               <span>Back to Payruns</span>
             </button>
