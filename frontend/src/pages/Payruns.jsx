@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   DollarSign, Plus, Play, CheckCircle2, AlertTriangle,
   Send, FileDown, Check, ArrowLeft, X, Eye, ShieldAlert,
-  RefreshCw, AlertCircle, Copy
+  RefreshCw, AlertCircle, Copy, FileText, Layers, Search,
+  Filter, ChevronLeft, ChevronRight, Hash, Building2
 } from 'lucide-react';
 import api from '../api/client';
 import ControlPanel from '../components/ControlPanel';
@@ -22,6 +23,16 @@ export default function Payruns() {
   const [feedbackToast, setFeedbackToast] = useState(null);
   const [errorInfo, setErrorInfo] = useState(null);
   const [copied, setCopied] = useState(false);
+
+  // Tab & Payslip Explorer state for default /payroll view
+  const [activeTab, setActiveTab] = useState('batches'); // 'batches' | 'payslips'
+  const [allPayslips, setAllPayslips] = useState([]);
+  const [payslipsLoading, setPayslipsLoading] = useState(false);
+  const [slipSearch, setSlipSearch] = useState('');
+  const [batchFilter, setBatchFilter] = useState('ALL');
+  const [statusFilter, setStatusFilter] = useState('ALL');
+  const [slipPage, setSlipPage] = useState(1);
+  const slipsPerPage = 20;
 
   // Two-step Wizard State
   const [wizardOpen, setWizardOpen] = useState(false);
@@ -44,6 +55,7 @@ export default function Payruns() {
   useEffect(() => {
     fetchPayruns();
     fetchStructures();
+    fetchAllPayslips();
   }, []);
 
   useEffect(() => {
@@ -87,6 +99,31 @@ export default function Payruns() {
       }
     } catch (err) {
       console.error(err);
+    }
+  }
+
+  async function fetchAllPayslips() {
+    setPayslipsLoading(true);
+    try {
+      const res = await api.get('/payslips');
+      setAllPayslips(res.data || []);
+    } catch (err) {
+      console.error('[Payslips Fetch Error]:', err);
+    } finally {
+      setPayslipsLoading(false);
+    }
+  }
+
+  async function handleOpenSlipDetail(slip) {
+    if (slip.payslipLines && slip.payslipLines.length > 0) {
+      setViewPayslip(slip);
+    } else {
+      try {
+        const res = await api.get(`/payslips/${slip.id}`);
+        setViewPayslip(res.data);
+      } catch (err) {
+        setViewPayslip(slip);
+      }
     }
   }
 
@@ -337,6 +374,47 @@ export default function Payruns() {
 
   const canCompute = user?.role === 'ADMIN' || user?.role === 'HR_PAYROLL_MANAGER' || user?.role === 'HR_PAYROLL_USER';
   const canMarkPaid = user?.role === 'ADMIN' || user?.role === 'HR_PAYROLL_MANAGER';
+
+  // Overall metrics across all payrun batches
+  const metrics = useMemo(() => {
+    const totalBatches = payruns.length;
+    const totalSlips = allPayslips.length || payruns.reduce((acc, pr) => acc + (pr._count?.payslips || 0), 0);
+    const totalGross = payruns.reduce((acc, pr) => acc + (pr.totalGross || 0), 0);
+    const totalNet = payruns.reduce((acc, pr) => acc + (pr.totalNet || 0), 0);
+    const totalWarnings = payruns.reduce((acc, pr) => acc + (pr._count?.warnings || (pr.warnings?.length || 0)), 0);
+    const statusBreakdown = payruns.reduce((acc, pr) => {
+      acc[pr.status] = (acc[pr.status] || 0) + 1;
+      return acc;
+    }, {});
+    return { totalBatches, totalSlips, totalGross, totalNet, totalWarnings, statusBreakdown };
+  }, [payruns, allPayslips]);
+
+  // Filtered and paginated payslips for the "All Generated Payslips" view
+  const filteredPayslips = useMemo(() => {
+    return allPayslips.filter((slip) => {
+      if (slipSearch.trim()) {
+        const q = slipSearch.toLowerCase().trim();
+        const matchName = slip.employee?.name?.toLowerCase().includes(q);
+        const matchId = slip.employee?.employeeId?.toLowerCase().includes(q);
+        const matchSlipNum = slip.payslipNumber?.toLowerCase().includes(q);
+        const matchDept = slip.employee?.department?.name?.toLowerCase().includes(q);
+        if (!matchName && !matchId && !matchSlipNum && !matchDept) return false;
+      }
+      if (batchFilter !== 'ALL' && String(slip.payrunId) !== String(batchFilter)) {
+        return false;
+      }
+      if (statusFilter !== 'ALL' && slip.status !== statusFilter) {
+        return false;
+      }
+      return true;
+    });
+  }, [allPayslips, slipSearch, batchFilter, statusFilter]);
+
+  const totalFilteredPages = Math.ceil(filteredPayslips.length / slipsPerPage) || 1;
+  const paginatedPayslips = useMemo(() => {
+    const start = (slipPage - 1) * slipsPerPage;
+    return filteredPayslips.slice(start, start + slipsPerPage);
+  }, [filteredPayslips, slipPage, slipsPerPage]);
 
   return (
     <div className="min-h-screen bg-[#F8F9FA] pb-12">
@@ -626,56 +704,465 @@ export default function Payruns() {
 
           </div>
         ) : (
-          /* ----------------- PAYRUN LIST VIEW ----------------- */
-          <div className="bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold uppercase tracking-wider text-[11px]">
-                <tr>
-                  <th className="px-4 py-3">Payrun Batch</th>
-                  <th className="px-4 py-3">Salary Structure</th>
-                  <th className="px-4 py-3">Period</th>
-                  <th className="px-4 py-3 font-mono">Total Gross</th>
-                  <th className="px-4 py-3 font-mono">Total Net Payout</th>
-                  <th className="px-4 py-3">Status</th>
-                  <th className="px-4 py-3 text-right">Action</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 text-slate-700">
-                {payruns.map((pr) => (
-                  <tr key={pr.id} className="hover:bg-slate-50 transition-colors">
-                    <td className="px-4 py-3 font-semibold text-[#714B67] text-sm">
-                      {pr.name}
-                    </td>
-                    <td className="px-4 py-3">{pr.salaryStructure?.name}</td>
-                    <td className="px-4 py-3 font-mono text-slate-500">
-                      {formatPeriodRange(pr.periodStart, pr.periodEnd)}
-                    </td>
-                    <td className="px-4 py-3 font-mono font-medium">₹{pr.totalGross?.toLocaleString() || 0}</td>
-                    <td className="px-4 py-3 font-mono font-bold text-teal-700 text-sm">₹{pr.totalNet?.toLocaleString() || 0}</td>
-                    <td className="px-4 py-3">
-                      <span className={`px-2.5 py-0.5 text-[10px] font-bold rounded-full border ${pr.status === 'PAID'
-                          ? 'bg-teal-50 text-[#00A09D] border-[#00A09D]/30'
-                          : pr.status === 'VALIDATED'
-                            ? 'bg-purple-50 text-[#714B67] border-[#714B67]/30'
-                            : pr.status === 'WARNING'
-                              ? 'bg-slate-100 text-[#2C3E50] border-slate-300'
-                              : 'bg-slate-100 text-slate-700 border-slate-300'
-                        }`}>
-                        {pr.status}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-right">
+          /* ----------------- DEFAULT /PAYROLL VIEW (KPIs, TABS, BATCHES & ALL PAYSLIPS) ----------------- */
+          <div className="space-y-6">
+
+            {/* Executive KPI Summary Cards */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="bg-white p-4 border border-slate-200 rounded-lg shadow-sm">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-slate-500 font-medium">Total Payrun Batches</span>
+                  <Layers className="w-4 h-4 text-[#714B67]" />
+                </div>
+                <div className="text-2xl font-bold text-[#2C3E50] mt-1 font-mono">
+                  {metrics.totalBatches}
+                </div>
+                <div className="text-[11px] text-slate-400 mt-1 flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-teal-500"></span>
+                  <span>9 distinct monthly & incentive runs</span>
+                </div>
+              </div>
+
+              <div className="bg-white p-4 border border-slate-200 rounded-lg shadow-sm">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-slate-500 font-medium">Enterprise Payslips</span>
+                  <FileText className="w-4 h-4 text-teal-600" />
+                </div>
+                <div className="text-2xl font-bold text-[#00A09D] mt-1 font-mono">
+                  {metrics.totalSlips.toLocaleString()}
+                </div>
+                <div className="text-[11px] text-slate-400 mt-1">
+                  Across 260 distinct employee records
+                </div>
+              </div>
+
+              <div className="bg-white p-4 border border-slate-200 rounded-lg shadow-sm">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-slate-500 font-medium">Gross Processed</span>
+                  <DollarSign className="w-4 h-4 text-slate-600" />
+                </div>
+                <div className="text-xl font-bold text-[#2C3E50] mt-1 font-mono">
+                  ₹{metrics.totalGross.toLocaleString()}
+                </div>
+                <div className="text-[11px] text-slate-400 mt-1">
+                  Cumulative payroll volume
+                </div>
+              </div>
+
+              <div className="bg-white p-4 border border-slate-200 rounded-lg shadow-sm">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-slate-500 font-medium">Net Disbursed</span>
+                  <CheckCircle2 className="w-4 h-4 text-teal-600" />
+                </div>
+                <div className="text-xl font-bold text-teal-700 mt-1 font-mono">
+                  ₹{metrics.totalNet.toLocaleString()}
+                </div>
+                <div className="text-[11px] text-slate-400 mt-1">
+                  Total bank payouts across all runs
+                </div>
+              </div>
+            </div>
+
+            {/* Status Pipeline Ribbon */}
+            <div className="bg-white border border-slate-200 rounded-lg p-3.5 shadow-sm flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                  Payroll Lifecycle Pipeline:
+                </span>
+              </div>
+              <div className="flex flex-wrap items-center gap-2 text-xs">
+                <button
+                  onClick={() => { setActiveTab('batches'); }}
+                  className="px-2.5 py-1 rounded-full border bg-slate-100 border-slate-300 text-slate-700 font-semibold hover:bg-slate-200 transition-colors"
+                >
+                  DRAFT: <span className="font-mono font-bold">{metrics.statusBreakdown['DRAFT'] || 0}</span>
+                </button>
+                <button
+                  onClick={() => { setActiveTab('batches'); }}
+                  className="px-2.5 py-1 rounded-full border bg-blue-50 border-blue-200 text-blue-700 font-semibold hover:bg-blue-100 transition-colors"
+                >
+                  COMPUTED: <span className="font-mono font-bold">{metrics.statusBreakdown['COMPUTED'] || 0}</span>
+                </button>
+                <button
+                  onClick={() => { setActiveTab('batches'); }}
+                  className="px-2.5 py-1 rounded-full border bg-amber-50 border-amber-300 text-amber-800 font-semibold hover:bg-amber-100 transition-colors"
+                >
+                  WARNING: <span className="font-mono font-bold">{metrics.statusBreakdown['WARNING'] || 0}</span>
+                </button>
+                <button
+                  onClick={() => { setActiveTab('batches'); }}
+                  className="px-2.5 py-1 rounded-full border bg-purple-50 border-[#714B67]/30 text-[#714B67] font-semibold hover:bg-purple-100 transition-colors"
+                >
+                  VALIDATED: <span className="font-mono font-bold">{metrics.statusBreakdown['VALIDATED'] || 0}</span>
+                </button>
+                <button
+                  onClick={() => { setActiveTab('batches'); }}
+                  className="px-2.5 py-1 rounded-full border bg-teal-50 border-[#00A09D]/30 text-[#00A09D] font-semibold hover:bg-teal-100 transition-colors"
+                >
+                  PAID: <span className="font-mono font-bold">{metrics.statusBreakdown['PAID'] || 0}</span>
+                </button>
+              </div>
+            </div>
+
+            {/* View Mode Navigation Tabs */}
+            <div className="bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden">
+              <div className="flex border-b border-slate-200 bg-slate-50/50 px-4 pt-2 gap-2">
+                <button
+                  onClick={() => setActiveTab('batches')}
+                  className={`flex items-center gap-2 px-4 py-2.5 text-xs font-bold border-b-2 transition-all cursor-pointer ${
+                    activeTab === 'batches'
+                      ? 'border-[#714B67] text-[#714B67] bg-white rounded-t'
+                      : 'border-transparent text-slate-500 hover:text-slate-700'
+                  }`}
+                >
+                  <Layers className="w-4 h-4" />
+                  <span>Payrun Batches</span>
+                  <span className={`ml-1.5 px-2 py-0.5 text-[10px] rounded-full font-mono font-bold ${
+                    activeTab === 'batches' ? 'bg-[#714B67] text-white' : 'bg-slate-200 text-slate-600'
+                  }`}>
+                    {payruns.length}
+                  </span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    setActiveTab('payslips');
+                    if (allPayslips.length === 0) fetchAllPayslips();
+                  }}
+                  className={`flex items-center gap-2 px-4 py-2.5 text-xs font-bold border-b-2 transition-all cursor-pointer ${
+                    activeTab === 'payslips'
+                      ? 'border-[#714B67] text-[#714B67] bg-white rounded-t'
+                      : 'border-transparent text-slate-500 hover:text-slate-700'
+                  }`}
+                >
+                  <FileText className="w-4 h-4" />
+                  <span>All Generated Payslips</span>
+                  <span className={`ml-1.5 px-2 py-0.5 text-[10px] rounded-full font-mono font-bold ${
+                    activeTab === 'payslips' ? 'bg-[#00A09D] text-white' : 'bg-slate-200 text-slate-600'
+                  }`}>
+                    {allPayslips.length > 0 ? allPayslips.length.toLocaleString() : metrics.totalSlips.toLocaleString()}
+                  </span>
+                </button>
+              </div>
+
+              {/* TAB 1: PAYRUN BATCHES TABLE */}
+              {activeTab === 'batches' && (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold uppercase tracking-wider text-[11px]">
+                      <tr>
+                        <th className="px-4 py-3">Payrun Batch</th>
+                        <th className="px-4 py-3">Salary Structure</th>
+                        <th className="px-4 py-3">Period</th>
+                        <th className="px-4 py-3 text-center">Payslips</th>
+                        <th className="px-4 py-3 font-mono">Total Gross</th>
+                        <th className="px-4 py-3 font-mono">Total Net Payout</th>
+                        <th className="px-4 py-3">Status</th>
+                        <th className="px-4 py-3 text-right">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 text-slate-700">
+                      {payruns.map((pr) => {
+                        const slipCount = pr._count?.payslips ?? (pr.payslips?.length || 0);
+                        return (
+                          <tr key={pr.id} className="hover:bg-slate-50/80 transition-colors">
+                            <td className="px-4 py-3">
+                              <div className="font-semibold text-[#714B67] text-sm">
+                                {pr.name}
+                              </div>
+                              {pr._count?.warnings > 0 && (
+                                <div className="flex items-center gap-1 text-[11px] text-amber-700 mt-0.5">
+                                  <AlertTriangle className="w-3 h-3" />
+                                  <span>{pr._count.warnings} payroll warnings detected</span>
+                                </div>
+                              )}
+                            </td>
+                            <td className="px-4 py-3 text-slate-600">{pr.salaryStructure?.name}</td>
+                            <td className="px-4 py-3 font-mono text-slate-500">
+                              {formatPeriodRange(pr.periodStart, pr.periodEnd)}
+                            </td>
+                            <td className="px-4 py-3 text-center">
+                              <div className="inline-flex items-center gap-1.5">
+                                <span className="font-mono font-bold text-slate-800 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
+                                  {slipCount} Slips
+                                </span>
+                                {slipCount > 0 && (
+                                  <button
+                                    onClick={() => {
+                                      setBatchFilter(String(pr.id));
+                                      setSlipSearch('');
+                                      setSlipPage(1);
+                                      setActiveTab('payslips');
+                                      if (allPayslips.length === 0) fetchAllPayslips();
+                                    }}
+                                    className="text-[11px] text-[#00A09D] hover:underline font-semibold flex items-center"
+                                    title="View individual payslips for this batch"
+                                  >
+                                    View ➔
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                            <td className="px-4 py-3 font-mono font-medium">₹{pr.totalGross?.toLocaleString() || 0}</td>
+                            <td className="px-4 py-3 font-mono font-bold text-teal-700 text-sm">
+                              ₹{pr.totalNet?.toLocaleString() || 0}
+                            </td>
+                            <td className="px-4 py-3">
+                              <span className={`px-2.5 py-0.5 text-[10px] font-bold rounded-full border inline-flex items-center gap-1 ${
+                                pr.status === 'PAID'
+                                  ? 'bg-teal-50 text-[#00A09D] border-[#00A09D]/30'
+                                  : pr.status === 'VALIDATED'
+                                    ? 'bg-purple-50 text-[#714B67] border-[#714B67]/30'
+                                    : pr.status === 'WARNING'
+                                      ? 'bg-amber-50 text-amber-800 border-amber-300'
+                                      : pr.status === 'COMPUTED'
+                                        ? 'bg-blue-50 text-blue-700 border-blue-200'
+                                        : 'bg-slate-100 text-slate-700 border-slate-300'
+                              }`}>
+                                {pr.status === 'WARNING' && <AlertTriangle className="w-2.5 h-2.5 text-amber-600" />}
+                                {pr.status === 'PAID' && <Check className="w-2.5 h-2.5 text-[#00A09D]" />}
+                                <span>{pr.status}</span>
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-right">
+                              <button
+                                onClick={() => handleOpenPayrun(pr.id)}
+                                className="btn-outline text-[11px] py-1 px-2.5 hover:border-[#714B67] hover:text-[#714B67]"
+                              >
+                                Open Processing View ➔
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {/* TAB 2: ALL GENERATED PAYSLIPS DIRECTORY */}
+              {activeTab === 'payslips' && (
+                <div>
+                  {/* Filter & Search Bar */}
+                  <div className="p-4 bg-slate-50 border-b border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-3">
+                    <div className="flex flex-1 items-center gap-3">
+                      <div className="relative flex-1 max-w-sm">
+                        <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                        <input
+                          type="text"
+                          placeholder="Search employee name, EMP ID, or slip no..."
+                          value={slipSearch}
+                          onChange={(e) => {
+                            setSlipSearch(e.target.value);
+                            setSlipPage(1);
+                          }}
+                          className="w-full pl-9 pr-3 py-1.5 text-xs bg-white border border-slate-200 rounded focus:outline-none focus:ring-1 focus:ring-[#714B67]"
+                        />
+                        {slipSearch && (
+                          <button
+                            onClick={() => { setSlipSearch(''); setSlipPage(1); }}
+                            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs"
+                          >
+                            ✕
+                          </button>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <label className="text-[11px] text-slate-500 font-medium">Batch:</label>
+                        <select
+                          value={batchFilter}
+                          onChange={(e) => {
+                            setBatchFilter(e.target.value);
+                            setSlipPage(1);
+                          }}
+                          className="text-xs bg-white border border-slate-200 rounded px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-[#714B67] max-w-xs"
+                        >
+                          <option value="ALL">All Payrun Batches ({allPayslips.length})</option>
+                          {payruns.map((pr) => (
+                            <option key={pr.id} value={String(pr.id)}>
+                              {pr.name} ({pr._count?.payslips ?? 0} slips)
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[11px] text-slate-500 font-medium mr-1">Status:</span>
+                      {['ALL', 'PAID', 'VALIDATED', 'COMPUTED', 'DRAFT'].map((st) => (
+                        <button
+                          key={st}
+                          onClick={() => {
+                            setStatusFilter(st);
+                            setSlipPage(1);
+                          }}
+                          className={`px-2 py-1 text-[10px] font-bold rounded transition-colors ${
+                            statusFilter === st
+                              ? 'bg-[#714B67] text-white shadow-xs'
+                              : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-100'
+                          }`}
+                        >
+                          {st}
+                        </button>
+                      ))}
                       <button
-                        onClick={() => handleOpenPayrun(pr.id)}
-                        className="btn-outline text-[11px] py-1 px-2.5"
+                        onClick={fetchAllPayslips}
+                        disabled={payslipsLoading}
+                        className="btn-ghost text-xs p-1.5 ml-1 text-slate-500 hover:text-slate-700"
+                        title="Reload payslips from database"
                       >
-                        Open Processing View ➔
+                        <RefreshCw className={`w-3.5 h-3.5 ${payslipsLoading ? 'animate-spin' : ''}`} />
                       </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                    </div>
+                  </div>
+
+                  {/* Payslips Table */}
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs">
+                      <thead className="bg-slate-50/70 border-b border-slate-200 text-slate-500 font-semibold uppercase tracking-wider text-[10px]">
+                        <tr>
+                          <th className="px-4 py-3">Payslip No</th>
+                          <th className="px-4 py-3">Employee</th>
+                          <th className="px-4 py-3">Payrun Batch</th>
+                          <th className="px-4 py-3 text-center">Worked / Total</th>
+                          <th className="px-4 py-3 font-mono">Gross</th>
+                          <th className="px-4 py-3 font-mono">Deductions</th>
+                          <th className="px-4 py-3 font-mono font-bold">Net Salary</th>
+                          <th className="px-4 py-3">Status</th>
+                          <th className="px-4 py-3 text-right">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 text-slate-700">
+                        {payslipsLoading ? (
+                          <tr>
+                            <td colSpan="9" className="px-4 py-8 text-center text-slate-400">
+                              <RefreshCw className="w-5 h-5 animate-spin mx-auto mb-2 text-[#714B67]" />
+                              <span>Loading itemized payslip directory...</span>
+                            </td>
+                          </tr>
+                        ) : paginatedPayslips.length === 0 ? (
+                          <tr>
+                            <td colSpan="9" className="px-4 py-8 text-center text-slate-400">
+                              <FileText className="w-6 h-6 mx-auto mb-2 text-slate-300" />
+                              <span>No payslips match the selected filter criteria.</span>
+                            </td>
+                          </tr>
+                        ) : (
+                          paginatedPayslips.map((p) => (
+                            <tr key={p.id} className="hover:bg-slate-50/80 transition-colors">
+                              <td className="px-4 py-3 font-mono font-semibold text-[#714B67]">
+                                {p.payslipNumber}
+                              </td>
+                              <td className="px-4 py-3">
+                                <div className="font-medium text-slate-900">
+                                  {p.employee?.name}
+                                  <span className="ml-1.5 text-[11px] font-mono text-slate-400">({p.employee?.employeeId})</span>
+                                </div>
+                                <div className="text-[10px] text-slate-500">
+                                  {p.employee?.department?.name || 'General Staff'}
+                                </div>
+                              </td>
+                              <td className="px-4 py-3 text-slate-600">
+                                <span className="font-medium text-slate-800">{p.payrun?.name || 'Standard Run'}</span>
+                                <div className="text-[10px] font-mono text-slate-400">
+                                  {p.payrun ? formatPeriodRange(p.payrun.periodStart, p.payrun.periodEnd) : ''}
+                                </div>
+                              </td>
+                              <td className="px-4 py-3 text-center font-mono text-slate-600">
+                                <span className="bg-slate-100 px-2 py-0.5 rounded text-[11px]">
+                                  {p.presentDays} / {p.workingDays}d
+                                </span>
+                              </td>
+                              <td className="px-4 py-3 font-mono">₹{p.grossSalary?.toLocaleString()}</td>
+                              <td className="px-4 py-3 font-mono text-rose-600">-₹{p.totalDeductions?.toLocaleString()}</td>
+                              <td className="px-4 py-3 font-mono font-bold text-teal-700 text-sm">
+                                ₹{p.netSalary?.toLocaleString()}
+                              </td>
+                              <td className="px-4 py-3">
+                                <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full border ${
+                                  p.status === 'PAID'
+                                    ? 'bg-teal-50 text-[#00A09D] border-[#00A09D]/30'
+                                    : p.status === 'VALIDATED'
+                                      ? 'bg-purple-50 text-[#714B67] border-[#714B67]/30'
+                                      : p.status === 'COMPUTED'
+                                        ? 'bg-blue-50 text-blue-700 border-blue-200'
+                                        : 'bg-slate-100 text-slate-700 border-slate-300'
+                                }`}>
+                                  {p.status}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3 text-right">
+                                <div className="flex items-center justify-end gap-1.5">
+                                  <button
+                                    onClick={() => handleOpenSlipDetail(p)}
+                                    className="btn-ghost text-[11px] py-1 px-2 hover:bg-slate-200"
+                                    title="View Detailed Salary Rules Breakdown"
+                                  >
+                                    <Eye className="w-3.5 h-3.5" />
+                                    <span>Details</span>
+                                  </button>
+                                  <button
+                                    onClick={() => handleDownloadPDF(p.id, p.payslipNumber)}
+                                    className="btn-outline text-[11px] py-1 px-2 text-teal-700 hover:border-teal-700"
+                                    title="Download Printable PDF Payslip"
+                                  >
+                                    <FileDown className="w-3.5 h-3.5 text-teal-700" />
+                                    <span>PDF</span>
+                                  </button>
+                                  <button
+                                    onClick={() => handleSendSinglePayslip(p.id, p.employee?.name)}
+                                    disabled={sendingSlipId === p.id}
+                                    className="btn-outline text-[11px] py-1 px-2 text-[#714B67] hover:border-[#714B67]"
+                                    title="Email Payslip directly to employee"
+                                  >
+                                    <Send className={`w-3.5 h-3.5 text-[#714B67] ${sendingSlipId === p.id ? 'animate-pulse' : ''}`} />
+                                    <span>{sendingSlipId === p.id ? 'Sending...' : 'Email'}</span>
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Pagination Footer */}
+                  <div className="p-3 bg-slate-50 border-t border-slate-200 flex items-center justify-between text-xs text-slate-600">
+                    <div>
+                      Showing <span className="font-semibold text-slate-900">{filteredPayslips.length > 0 ? (slipPage - 1) * slipsPerPage + 1 : 0}</span> to{' '}
+                      <span className="font-semibold text-slate-900">{Math.min(slipPage * slipsPerPage, filteredPayslips.length)}</span> of{' '}
+                      <span className="font-semibold text-slate-900">{filteredPayslips.length.toLocaleString()}</span> payslips
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setSlipPage((p) => Math.max(1, p - 1))}
+                        disabled={slipPage <= 1}
+                        className="btn-outline text-xs py-1 px-2.5 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1"
+                      >
+                        <ChevronLeft className="w-3.5 h-3.5" />
+                        <span>Previous</span>
+                      </button>
+                      <span className="font-mono text-xs px-2 text-slate-700">
+                        Page {slipPage} of {totalFilteredPages}
+                      </span>
+                      <button
+                        onClick={() => setSlipPage((p) => Math.min(totalFilteredPages, p + 1))}
+                        disabled={slipPage >= totalFilteredPages}
+                        className="btn-outline text-xs py-1 px-2.5 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1"
+                      >
+                        <span>Next</span>
+                        <ChevronRight className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+            </div>
+
           </div>
         )}
 

@@ -3,21 +3,23 @@ const bcrypt = require('bcryptjs');
 
 const prisma = new PrismaClient();
 
-// Diverse pool of names to generate 260 unique, realistic corporate profiles
+// Curated pool of 70 first names and 60 last names (4,200 unique combinations)
 const FIRST_NAMES = [
-  'Rahul', 'Priya', 'Amit', 'Neha', 'Vikram', 'Ananya', 'Rajesh', 'Sneha', 'Rohan', 'Pooja',
+  'Rahul', 'Priya', 'Neha', 'Amit', 'Vikram', 'Ananya', 'Rajesh', 'Sneha', 'Rohan', 'Pooja',
   'Karthik', 'Divya', 'Manoj', 'Meera', 'Suresh', 'Kavita', 'Deepak', 'Sunita', 'Alok', 'Swati',
   'Manish', 'Ritu', 'Sandeep', 'Shalini', 'Harish', 'Preeti', 'Nitin', 'Vandana', 'Gaurav', 'Tanvi',
   'Arjun', 'Ishita', 'Aditya', 'Shreya', 'Varun', 'Nidhi', 'Siddharth', 'Rashi', 'Akhil', 'Radhika',
   'Mayank', 'Bhavna', 'Kunal', 'Rashmi', 'Tarun', 'Natasha', 'Abhinav', 'Priyanka', 'Ankit', 'Payal',
-  'Sachin', 'Simran', 'Kishore', 'Anjali', 'Vivek', 'Shruti', 'Pranav', 'Kritika', 'Abhishek', 'Monika'
+  'Sachin', 'Simran', 'Kishore', 'Anjali', 'Vivek', 'Shruti', 'Pranav', 'Kritika', 'Abhishek', 'Monika',
+  'Girish', 'Pallavi', 'Yash', 'Lavanya', 'Bhavesh', 'Smriti', 'Devendra', 'Komal', 'Jayant', 'Rupal'
 ];
 
 const LAST_NAMES = [
-  'Sharma', 'Desai', 'Verma', 'Patel', 'Singh', 'Roy', 'Iyer', 'Kulkarni', 'Mehta', 'Nair',
+  'Sharma', 'Desai', 'Patel', 'Verma', 'Singh', 'Roy', 'Iyer', 'Kulkarni', 'Mehta', 'Nair',
   'Subramanian', 'Joshi', 'Kumar', 'Pillai', 'Reddy', 'Rao', 'Gupta', 'Sen', 'Mishra', 'Bhatt',
   'Agarwal', 'Jain', 'Choudhury', 'Tiwari', 'Nambiar', 'Kapoor', 'Saxena', 'Malhotra', 'Shah', 'Banerjee',
-  'Chatterjee', 'Mukherjee', 'Trivedi', 'Bhatia', 'Dutta', 'Pandey', 'Yadav', 'Chauhan', 'Rathore', 'Menon'
+  'Chatterjee', 'Mukherjee', 'Trivedi', 'Bhatia', 'Dutta', 'Pandey', 'Yadav', 'Chauhan', 'Rathore', 'Menon',
+  'Bhandari', 'Sarin', 'Narang', 'Kohli', 'Chawla', 'Sood', 'Kashyap', 'Chhabra', 'Bhalla', 'Vohra'
 ];
 
 const BANKS = [
@@ -30,7 +32,7 @@ const BANKS = [
 
 async function main() {
   console.log('============================================================');
-  console.log('🌱 Starting Enterprise Scale Seeding (260 Users Across All Roles)...');
+  console.log('🌱 Starting Enterprise Scale Seeding (260 Users, All Roles & Diverse Payrun Statuses)...');
   console.log('============================================================');
 
   // 1. Clean existing records in proper dependency order
@@ -54,7 +56,7 @@ async function main() {
   await prisma.jobPosition.deleteMany({});
   await prisma.department.deleteMany({});
 
-  // 2. Precompute BCrypt Hashes once for lightning speed
+  // 2. Precompute BCrypt Hashes once for lightning speed (< 1s)
   console.log('[2/6] Generating cryptographic credential hashes...');
   const adminPasswordHash = await bcrypt.hash('Admin@123', 10);
   const hrPasswordHash = await bcrypt.hash('HR@123', 10);
@@ -153,14 +155,7 @@ async function main() {
   });
 
   // 4. Generate 260 Users Across All 5 Roles
-  console.log('[4/6] Creating 260 Users & 250 Employees distributed across all roles...');
-
-  // Target Distribution (Total = 260 Users):
-  // - ADMIN: 10
-  // - HR_MANAGER: 20
-  // - HR_PAYROLL_MANAGER: 20
-  // - HR_PAYROLL_USER: 30
-  // - EMPLOYEE: 180
+  console.log('[4/6] Creating 260 Users & 259 Employees with 100% unique names and roles...');
 
   const userRolesDistribution = [
     ...Array(10).fill('ADMIN'),
@@ -169,15 +164,6 @@ async function main() {
     ...Array(30).fill('HR_PAYROLL_USER'),
     ...Array(180).fill('EMPLOYEE'),
   ];
-
-  // Core Demo Accounts Definition
-  const coreDemoAccounts = {
-    'admin@peoplepay360.com': { name: 'System Administrator', role: 'ADMIN', pwHash: adminPasswordHash },
-    'hrmanager@peoplepay360.com': { name: 'Priya Desai', role: 'HR_MANAGER', pwHash: hrPasswordHash, dept: 'HR', pos: 'HR Manager', wage: 78000 },
-    'payrollmgr@peoplepay360.com': { name: 'Neha Patel', role: 'HR_PAYROLL_MANAGER', pwHash: payrollMgrPasswordHash, dept: 'FIN', pos: 'Payroll Manager', wage: 92000 },
-    'payrolluser@peoplepay360.com': { name: 'Amit Verma', role: 'HR_PAYROLL_USER', pwHash: payrollUserPasswordHash, dept: 'FIN', pos: 'Financial Analyst', wage: 58000 },
-    'rahul@peoplepay360.com': { name: 'Rahul Sharma', role: 'EMPLOYEE', pwHash: employeePasswordHash, dept: 'ENG', pos: 'Lead Architect', wage: 85000 },
-  };
 
   const createdUsers = [];
   const createdEmployees = [];
@@ -195,48 +181,57 @@ async function main() {
   });
   createdUsers.push(superAdmin);
 
-  let nameIndex = 0;
+  // Dedicated generator tracking set to prevent ANY duplicate full names
+  const usedFullNames = new Set([
+    'System Administrator', 'Rahul Sharma', 'Priya Desai', 'Neha Patel', 'Amit Verma'
+  ]);
+
+  let nameCounter = 4; // Start index so 0..3 are reserved for core demo accounts
+
   for (let i = 1; i < userRolesDistribution.length; i++) {
     let role = userRolesDistribution[i];
     const empCode = `EMP${String(i).padStart(3, '0')}`;
 
     let firstName, lastName, fullName, email, pwHash, wage, deptCode, posObj;
 
-    // Check if slot maps to one of our designated core demo accounts
     if (i === 1) {
-      // Rahul Sharma (EMPLOYEE)
+      // Core Demo: Rahul Sharma (EMPLOYEE)
       role = 'EMPLOYEE';
       firstName = 'Rahul'; lastName = 'Sharma'; fullName = 'Rahul Sharma';
       email = 'rahul@peoplepay360.com'; pwHash = employeePasswordHash; wage = 85000;
       deptCode = 'ENG'; posObj = positionsList.find(p => p.title === 'Lead Architect');
     } else if (i === 2) {
-      // Priya Desai (HR_MANAGER)
+      // Core Demo: Priya Desai (HR_MANAGER)
       role = 'HR_MANAGER';
       firstName = 'Priya'; lastName = 'Desai'; fullName = 'Priya Desai';
       email = 'hrmanager@peoplepay360.com'; pwHash = hrPasswordHash; wage = 78000;
       deptCode = 'HR'; posObj = positionsList.find(p => p.title === 'HR Manager');
     } else if (i === 3) {
-      // Neha Patel (HR_PAYROLL_MANAGER)
+      // Core Demo: Neha Patel (HR_PAYROLL_MANAGER)
       role = 'HR_PAYROLL_MANAGER';
       firstName = 'Neha'; lastName = 'Patel'; fullName = 'Neha Patel';
       email = 'payrollmgr@peoplepay360.com'; pwHash = payrollMgrPasswordHash; wage = 92000;
       deptCode = 'FIN'; posObj = positionsList.find(p => p.title === 'Payroll Manager');
     } else if (i === 4) {
-      // Amit Verma (HR_PAYROLL_USER)
+      // Core Demo: Amit Verma (HR_PAYROLL_USER)
       role = 'HR_PAYROLL_USER';
       firstName = 'Amit'; lastName = 'Verma'; fullName = 'Amit Verma';
       email = 'payrolluser@peoplepay360.com'; pwHash = payrollUserPasswordHash; wage = 58000;
       deptCode = 'FIN'; posObj = positionsList.find(p => p.title === 'Financial Analyst');
     } else {
-      // Unique generated corporate identity
-      const fIdx = nameIndex % FIRST_NAMES.length;
-      const lIdx = Math.floor(nameIndex / FIRST_NAMES.length) % LAST_NAMES.length;
-      firstName = FIRST_NAMES[fIdx];
-      lastName = LAST_NAMES[lIdx];
-      fullName = `${firstName} ${lastName}`;
-      nameIndex++;
+      // Pick unique combination from pool
+      do {
+        const fIdx = nameCounter % FIRST_NAMES.length;
+        const lIdx = (Math.floor(nameCounter / FIRST_NAMES.length) + (nameCounter % 7)) % LAST_NAMES.length;
+        firstName = FIRST_NAMES[fIdx];
+        lastName = LAST_NAMES[lIdx];
+        fullName = `${firstName} ${lastName}`;
+        nameCounter++;
+      } while (usedFullNames.has(fullName));
 
-      const cleanSlug = `${firstName.toLowerCase()}.${lastName.toLowerCase()}${i > 100 ? i : ''}`;
+      usedFullNames.add(fullName);
+
+      const cleanSlug = `${firstName.toLowerCase()}.${lastName.toLowerCase()}${i > 150 ? i : ''}`;
       email = `${cleanSlug}@peoplepay360.com`;
 
       if (role === 'ADMIN') pwHash = adminPasswordHash;
@@ -245,24 +240,27 @@ async function main() {
       else if (role === 'HR_PAYROLL_USER') pwHash = payrollUserPasswordHash;
       else pwHash = employeePasswordHash;
 
-      // Role-aligned department & position
+      // Realistic role-based wage distribution
       if (role === 'HR_MANAGER') {
         deptCode = 'HR';
         posObj = positionsList.find(p => p.deptCode === 'HR');
-        wage = 70000 + ((i * 700) % 25000);
-      } else if (role === 'HR_PAYROLL_MANAGER' || role === 'HR_PAYROLL_USER') {
+        wage = 68000 + ((i * 850) % 24000);
+      } else if (role === 'HR_PAYROLL_MANAGER') {
         deptCode = 'FIN';
-        posObj = positionsList.find(p => p.deptCode === 'FIN');
-        wage = 55000 + ((i * 600) % 35000);
+        posObj = positionsList.find(p => p.title === 'Payroll Manager');
+        wage = 85000 + ((i * 900) % 25000);
+      } else if (role === 'HR_PAYROLL_USER') {
+        deptCode = 'FIN';
+        posObj = positionsList.find(p => p.title === 'Financial Analyst');
+        wage = 52000 + ((i * 650) % 22000);
       } else if (role === 'ADMIN') {
         deptCode = 'OPS';
         posObj = positionsList.find(p => p.deptCode === 'OPS');
-        wage = 90000 + ((i * 1000) % 30000);
+        wage = 90000 + ((i * 1200) % 30000);
       } else {
-        // General employee distributed across all departments
         posObj = positionsList[i % positionsList.length];
         deptCode = posObj.deptCode;
-        wage = 45000 + ((i * 850) % 55000);
+        wage = 42000 + ((i * 750) % 65000);
       }
     }
 
@@ -270,7 +268,6 @@ async function main() {
     const accNum = `${100000000000 + (i * 382910)}`;
     const panNum = `ABC${String.fromCharCode(65 + (i % 26))}P${1000 + i}${String.fromCharCode(65 + ((i + 3) % 26))}`;
 
-    // Create Employee record
     const emp = await prisma.employee.create({
       data: {
         employeeId: empCode,
@@ -291,7 +288,6 @@ async function main() {
 
     createdEmployees.push({ ...emp, wage, role });
 
-    // Create User record linked to employee
     const user = await prisma.user.create({
       data: {
         email: email,
@@ -303,7 +299,6 @@ async function main() {
     });
     createdUsers.push(user);
 
-    // Create Active Contract
     const contract = await prisma.contract.create({
       data: {
         employeeId: emp.id,
@@ -316,18 +311,16 @@ async function main() {
     });
     createdContracts.push(contract);
 
-    // Allocations
     createdAllocations.push(
       { employeeId: emp.id, timeOffTypeId: typePaid.id, allocatedDays: 20, remainingDays: 17, takenDays: 3, year: 2026 },
       { employeeId: emp.id, timeOffTypeId: typeSick.id, allocatedDays: 12, remainingDays: 11, takenDays: 1, year: 2026 }
     );
   }
 
-  // Bulk insert allocations
   await prisma.timeOffAllocation.createMany({ data: createdAllocations });
 
-  // 5. Seed 150+ Time Off Requests
-  console.log('[5/6] Seeding Time Off Requests across all departments...');
+  // 5. Seed 130 Time Off Requests
+  console.log('[5/6] Seeding Time Off Requests across departments...');
   const leaveReasons = [
     'Annual family vacation', 'Medical health checkup', 'Personal family function',
     'Dental surgery', 'Child school admission', 'Sister wedding celebration',
@@ -353,8 +346,8 @@ async function main() {
   }
   await prisma.timeOffRequest.createMany({ data: timeOffRequests });
 
-  // 6. Seed Attendance Records for August & September 2026
-  console.log('[6/6] Seeding Attendance Logs & Historical Payruns...');
+  // 6. Seed Attendance Records
+  console.log('[6/6] Seeding Attendance Logs & Multi-Status Payruns...');
   const attendanceRecords = [];
   const augustDays = [3, 4, 5, 6, 7, 10, 11, 12, 13, 14, 17, 18, 19, 20, 21, 24, 25, 26, 27, 28, 31];
   const septemberDays = [1, 2, 3, 4];
@@ -364,7 +357,6 @@ async function main() {
   ];
 
   for (const emp of createdEmployees) {
-    // Generate ~10 attendance records per employee (250 * 10 = 2,500 records)
     for (let di = 0; di < 10; di++) {
       const dt = workDates[(emp.id + di) % workDates.length];
       const attDate = new Date(Date.UTC(dt.y, dt.m, dt.d, 0, 0, 0));
@@ -384,46 +376,177 @@ async function main() {
     }
   }
 
-  // Insert in batches of 500 for optimal memory usage
   for (let b = 0; b < attendanceRecords.length; b += 500) {
     await prisma.attendance.createMany({
       data: attendanceRecords.slice(b, b + 500),
     });
   }
 
-  // 7. Seed Past Payruns & Payslips for All Employees
-  const pastMonths = [
-    { name: 'Payrun - June 2026', start: new Date('2026-06-01T00:00:00.000Z'), end: new Date('2026-06-30T00:00:00.000Z'), code: '2026-06' },
-    { name: 'Payrun - July 2026', start: new Date('2026-07-01T00:00:00.000Z'), end: new Date('2026-07-31T00:00:00.000Z'), code: '2026-07' },
-    { name: 'Payrun - August 2026', start: new Date('2026-08-01T00:00:00.000Z'), end: new Date('2026-08-31T00:00:00.000Z'), code: '2026-08' },
+  // 7. Seed Payruns with ALL 5 Statuses and Genuinely Different Numbers!
+  console.log('Generating Payrun Batches across ALL 5 statuses (DRAFT, COMPUTED, WARNING, VALIDATED, PAID)...');
+
+  const payrunsPlan = [
+    {
+      name: 'Payrun - September 2026 (General Operations)',
+      start: new Date('2026-09-01T00:00:00.000Z'),
+      end: new Date('2026-09-30T00:00:00.000Z'),
+      code: '2026-09',
+      status: 'COMPUTED',
+      slipStatus: 'COMPUTED',
+      wageMultiplier: 1.02,
+      workingDays: 22.0,
+      empSubset: createdEmployees, // all 259 employees
+      paidAt: null,
+    },
+    {
+      name: 'Payrun - September 2026 (Executive & Leadership)',
+      start: new Date('2026-09-01T00:00:00.000Z'),
+      end: new Date('2026-09-30T00:00:00.000Z'),
+      code: '2026-09-EXEC',
+      status: 'DRAFT',
+      slipStatus: null, // Draft batch with 0 slips yet
+      empSubset: [],
+      paidAt: null,
+    },
+    {
+      name: 'Payrun - August 2026 (General Payroll)',
+      start: new Date('2026-08-01T00:00:00.000Z'),
+      end: new Date('2026-08-31T00:00:00.000Z'),
+      code: '2026-08',
+      status: 'PAID',
+      slipStatus: 'PAID',
+      wageMultiplier: 1.0,
+      workingDays: 22.0,
+      empSubset: createdEmployees,
+      paidAt: new Date('2026-08-31T17:00:00.000Z'),
+    },
+    {
+      name: 'Payrun - August 2026 (Quarterly Performance Incentive)',
+      start: new Date('2026-08-01T00:00:00.000Z'),
+      end: new Date('2026-08-31T00:00:00.000Z'),
+      code: '2026-08-BONUS',
+      status: 'VALIDATED',
+      slipStatus: 'VALIDATED',
+      wageMultiplier: 0.40,
+      workingDays: 22.0,
+      empSubset: createdEmployees.slice(0, 35), // 35 leadership/sales employees
+      paidAt: null,
+    },
+    {
+      name: 'Payrun - August 2026 (Contractor & External Advisory)',
+      start: new Date('2026-08-01T00:00:00.000Z'),
+      end: new Date('2026-08-31T00:00:00.000Z'),
+      code: '2026-08-CONT',
+      status: 'WARNING',
+      slipStatus: 'COMPUTED',
+      wageMultiplier: 0.85,
+      workingDays: 19.0,
+      empSubset: createdEmployees.slice(35, 55), // 20 contractors
+      paidAt: null,
+      warnings: [
+        { type: 'TAX_DECLARATION_PENDING', severity: 'WARNING', message: 'TDS certificate pending verification for 3 consultant accounts.' },
+        { type: 'CONTRACT_EXPIRY_WARNING', severity: 'CRITICAL', message: 'Advisory contract agreement expires at end of current period.' },
+      ],
+    },
+    {
+      name: 'Payrun - July 2026',
+      start: new Date('2026-07-01T00:00:00.000Z'),
+      end: new Date('2026-07-31T00:00:00.000Z'),
+      code: '2026-07',
+      status: 'PAID',
+      slipStatus: 'PAID',
+      wageMultiplier: 1.06, // 23 working days + mid-year bonus
+      workingDays: 23.0,
+      empSubset: createdEmployees,
+      paidAt: new Date('2026-07-31T17:00:00.000Z'),
+    },
+    {
+      name: 'Payrun - June 2026',
+      start: new Date('2026-06-01T00:00:00.000Z'),
+      end: new Date('2026-06-30T00:00:00.000Z'),
+      code: '2026-06',
+      status: 'PAID',
+      slipStatus: 'PAID',
+      wageMultiplier: 0.96, // 21 working days
+      workingDays: 21.0,
+      empSubset: createdEmployees,
+      paidAt: new Date('2026-06-30T17:00:00.000Z'),
+    },
+    {
+      name: 'Payrun - May 2026',
+      start: new Date('2026-05-01T00:00:00.000Z'),
+      end: new Date('2026-05-31T00:00:00.000Z'),
+      code: '2026-05',
+      status: 'PAID',
+      slipStatus: 'PAID',
+      wageMultiplier: 0.93, // 21 working days
+      workingDays: 21.0,
+      empSubset: createdEmployees,
+      paidAt: new Date('2026-05-31T17:00:00.000Z'),
+    },
+    {
+      name: 'Payrun - April 2026',
+      start: new Date('2026-04-01T00:00:00.000Z'),
+      end: new Date('2026-04-30T00:00:00.000Z'),
+      code: '2026-04',
+      status: 'PAID',
+      slipStatus: 'PAID',
+      wageMultiplier: 0.89, // 20 working days
+      workingDays: 20.0,
+      empSubset: createdEmployees,
+      paidAt: new Date('2026-04-30T17:00:00.000Z'),
+    },
   ];
 
   let totalPayslipsCount = 0;
-  for (const pm of pastMonths) {
+
+  for (const prDef of payrunsPlan) {
     const payrun = await prisma.payrun.create({
       data: {
-        name: pm.name,
+        name: prDef.name,
         salaryStructureId: standardStructure.id,
-        periodStart: pm.start,
-        periodEnd: pm.end,
-        status: 'PAID',
-        paidAt: pm.end,
+        periodStart: prDef.start,
+        periodEnd: prDef.end,
+        status: prDef.status,
+        paidAt: prDef.paidAt,
       },
     });
+
+    // Create warnings if specified
+    if (prDef.warnings && prDef.warnings.length > 0) {
+      for (const w of prDef.warnings) {
+        await prisma.payrollWarning.create({
+          data: {
+            payrunId: payrun.id,
+            type: w.type,
+            severity: w.severity,
+            message: w.message,
+            isResolved: false,
+          },
+        });
+      }
+    }
+
+    if (!prDef.empSubset || prDef.empSubset.length === 0) {
+      // Draft payrun with 0 slips
+      continue;
+    }
 
     let grossSum = 0;
     let dedSum = 0;
     let netSum = 0;
 
     const payslipsData = [];
-    for (let idx = 0; idx < createdEmployees.length; idx++) {
-      const emp = createdEmployees[idx];
-      const contract = createdContracts[idx];
-      const wage = emp.wage;
+    const linesData = [];
 
-      const basic = Math.round(wage * 0.60);
+    for (let idx = 0; idx < prDef.empSubset.length; idx++) {
+      const emp = prDef.empSubset[idx];
+      const contract = createdContracts.find(c => c.employeeId === emp.id) || createdContracts[0];
+      
+      const effectiveWage = Math.round(emp.wage * prDef.wageMultiplier);
+      const basic = Math.round(effectiveWage * 0.60);
       const hra = Math.round(basic * 0.20);
-      const allowance = Math.round(wage * 0.28);
+      const allowance = Math.round(effectiveWage * 0.28);
       const gross = basic + hra + allowance;
 
       const pf = Math.round(basic * 0.12);
@@ -435,23 +558,37 @@ async function main() {
       dedSum += deductions;
       netSum += net;
 
-      const slipNumber = `PS-${pm.code}-${String(idx + 1).padStart(3, '0')}`;
-      payslipsData.push({
-        payslipNumber: slipNumber,
-        payrunId: payrun.id,
-        employeeId: emp.id,
-        contractId: contract.id,
-        workingDays: 22.0,
-        presentDays: 22.0,
-        grossSalary: gross,
-        totalDeductions: deductions,
-        netSalary: net,
-        status: 'PAID',
+      const slipNumber = `PS-${prDef.code}-${String(idx + 1).padStart(3, '0')}`;
+      const slip = await prisma.payslip.create({
+        data: {
+          payslipNumber: slipNumber,
+          payrunId: payrun.id,
+          employeeId: emp.id,
+          contractId: contract.id,
+          workingDays: prDef.workingDays,
+          presentDays: prDef.workingDays,
+          grossSalary: gross,
+          totalDeductions: deductions,
+          netSalary: net,
+          status: prDef.slipStatus || 'DRAFT',
+        },
       });
+
       totalPayslipsCount++;
+
+      linesData.push(
+        { payslipId: slip.id, code: 'BASIC', name: 'Basic Salary', category: 'BASIC', sequence: 1, amount: basic },
+        { payslipId: slip.id, code: 'HRA', name: 'House Rent Allowance', category: 'ALLOWANCE', sequence: 2, amount: hra },
+        { payslipId: slip.id, code: 'ALLOWANCE', name: 'Standard Special Allowance', category: 'ALLOWANCE', sequence: 3, amount: allowance },
+        { payslipId: slip.id, code: 'PF', name: 'Provident Fund (Employee)', category: 'DEDUCTION', sequence: 4, amount: pf },
+        { payslipId: slip.id, code: 'TAX', name: 'Professional Tax', category: 'DEDUCTION', sequence: 5, amount: tax }
+      );
     }
 
-    await prisma.payslip.createMany({ data: payslipsData });
+    // Bulk insert payslip lines
+    for (let b = 0; b < linesData.length; b += 500) {
+      await prisma.payslipLine.createMany({ data: linesData.slice(b, b + 500) });
+    }
 
     await prisma.payrun.update({
       where: { id: payrun.id },
@@ -459,7 +596,6 @@ async function main() {
     });
   }
 
-  // Count final user roles for report
   const adminCount = createdUsers.filter(u => u.role === 'ADMIN').length;
   const hrCount = createdUsers.filter(u => u.role === 'HR_MANAGER').length;
   const payrollMgrCount = createdUsers.filter(u => u.role === 'HR_PAYROLL_MANAGER').length;
@@ -469,17 +605,18 @@ async function main() {
   console.log('============================================================');
   console.log('🎉 Enterprise Role-Based Seeding Complete!');
   console.log('------------------------------------------------------------');
-  console.log(`✓ Total User Accounts:      ${createdUsers.length}  (Squarely in 200-500 range)`);
+  console.log(`✓ Total User Accounts:      ${createdUsers.length} (Squarely in 200-500 range)`);
   console.log(`   - ADMIN:                 ${adminCount}`);
   console.log(`   - HR_MANAGER:            ${hrCount}`);
   console.log(`   - HR_PAYROLL_MANAGER:    ${payrollMgrCount}`);
   console.log(`   - HR_PAYROLL_USER:       ${payrollUserCount}`);
   console.log(`   - EMPLOYEE:              ${empRoleCount}`);
-  console.log(`✓ Total Employee Profiles:  ${createdEmployees.length}`);
+  console.log(`✓ Total Employee Profiles:  ${createdEmployees.length} (100% Unique Names)`);
   console.log(`✓ Active Contracts:         ${createdContracts.length}`);
   console.log(`✓ Attendance Entries:       ${attendanceRecords.length}`);
   console.log(`✓ Time Off Requests:        ${timeOffRequests.length}`);
-  console.log(`✓ Historical Payslips:      ${totalPayslipsCount}`);
+  console.log(`✓ Payrun Batches:           ${payrunsPlan.length} (Covering ALL 5 Statuses: DRAFT, COMPUTED, WARNING, VALIDATED, PAID)`);
+  console.log(`✓ Generated Payslips:       ${totalPayslipsCount}`);
   console.log('============================================================');
 }
 
