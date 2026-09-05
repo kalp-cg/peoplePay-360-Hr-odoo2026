@@ -41,6 +41,15 @@ class AttendanceRepository {
     });
   }
 
+  async findLatestRecord(employeeId) {
+    return prisma.attendance.findFirst({
+      where: {
+        employeeId: parseInt(employeeId, 10),
+      },
+      orderBy: { id: 'desc' },
+    });
+  }
+
   async findByEmployeeAndDate(employeeId, date) {
     const d = new Date(date);
     const startOfDay = new Date(d);
