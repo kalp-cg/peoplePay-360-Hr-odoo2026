@@ -145,8 +145,11 @@ export default function Payruns() {
     }
   }
 
-  function handleOpenPayrun(id) {
-    navigate(`/payroll/payruns/${id}`);
+  function handleOpenPayrun(target) {
+    const payrunId = typeof target === 'object' && target !== null ? target.id : target;
+    if (payrunId) {
+      navigate(`/payroll/${payrunId}`);
+    }
   }
 
   function handleBackToPayruns() {
@@ -934,7 +937,7 @@ export default function Payruns() {
                             </td>
                             <td className="px-4 py-3 text-right">
                               <button
-                                onClick={() => handleOpenPayrun(pr)}
+                                onClick={() => handleOpenPayrun(pr.id)}
                                 className="btn-outline text-xs px-2.5 py-1 text-[#714B67] hover:border-[#714B67]"
                               >
                                 View Sheet &rarr;
