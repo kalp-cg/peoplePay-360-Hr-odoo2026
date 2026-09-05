@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { Lock, Mail, ArrowRight, Shield, UserCheck, AlertCircle } from 'lucide-react';
 import { useAuth, DEMO_ACCOUNTS } from '../context/AuthContext';
 
+import Btn from "./button.jsx";
+
 export default function LoginPage() {
   const { login, quickLogin } = useAuth();
   const navigate = useNavigate();
@@ -42,7 +44,7 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-[#3a2034] to-[#714B67] flex items-center justify-center p-4">
       <div className="max-w-4xl w-full bg-white rounded-2xl shadow-2xl overflow-hidden grid grid-cols-1 md:grid-cols-2 border border-white/20">
-        
+
         {/* Left Side: Branding & Quick Evaluator Accounts */}
         <div className="bg-[#714B67] p-8 text-white flex flex-col justify-between relative overflow-hidden">
           {/* Subtle background decoration */}
@@ -68,7 +70,7 @@ export default function LoginPage() {
                 <UserCheck className="w-3.5 h-3.5" />
                 <span>1-Click Evaluator Demo Accounts</span>
               </div>
-              
+
               <div className="space-y-1.5">
                 {DEMO_ACCOUNTS.map((acc) => (
                   <button
@@ -158,6 +160,8 @@ export default function LoginPage() {
               <span>{loading ? 'Authenticating...' : 'Sign In'}</span>
               <ArrowRight className="w-4 h-4" />
             </button>
+
+
           </form>
 
           <div className="mt-8 text-center text-xs text-slate-400">

@@ -1,5 +1,6 @@
 const attendanceRepository = require('./attendance.repository');
 const auditService = require('../audit/audit.service');
+const prisma = require('../../config/database');
 
 function calculateWorkedHours(checkIn, checkOut, breakHours = 1.0) {
   if (!checkIn || !checkOut) return 0;
@@ -7,12 +8,23 @@ function calculateWorkedHours(checkIn, checkOut, breakHours = 1.0) {
   const outMs = new Date(checkOut).getTime();
   const rawHours = (outMs - inMs) / (1000 * 60 * 60);
   if (rawHours <= 0) return 0;
-  // Deduct meal break only if worked 5 or more hours
-  const actualBreak = rawHours >= 5.0 ? breakHours : 0;
-  return Math.max(0.01, Math.round((rawHours - actualBreak) * 100) / 100);
+  
+  // Deduct meal break only if worked 5 or more hours and rawHours exceeds breakHours
+  const actualBreak = (rawHours >= 5.0 && rawHours > breakHours) ? breakHours : 0;
+  const netHours = Math.max(0.01, rawHours - actualBreak);
+  return Math.round(netHours * 100) / 100;
 }
 
-const prisma = require('../../config/database');
+function getStartOfTodayLocal(dateInput) {
+  const d = dateInput ? new Date(dateInput) : new Date();
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  
+  const start = new Date(`${year}-${month}-${day}T00:00:00.000Z`);
+  const end = new Date(`${year}-${month}-${day}T23:59:59.999Z`);
+  return { start, end, dateString: `${year}-${month}-${day}` };
+}
 
 async function getEmployeeScheduleDay(employeeId, date) {
   try {
@@ -52,7 +64,6 @@ function resolveAttendanceStatus(workedHours, dailyTarget, wasLate) {
 
 class AttendanceService {
   async getAttendance(query, user) {
-    // If EMPLOYEE role, restrict to own attendance
     if (user.role === 'EMPLOYEE' && user.employeeId) {
       query.employeeId = user.employeeId;
     }
@@ -62,25 +73,21 @@ class AttendanceService {
   async recordAttendance(data, user) {
     let empId = data.employeeId ? parseInt(data.employeeId, 10) : user.employeeId;
     if (user.role === 'EMPLOYEE') {
-      empId = user.employeeId; // Force self
+      empId = user.employeeId;
     }
 
     if (!empId) {
       throw { statusCode: 400, message: 'Employee ID is required.', code: 'MISSING_EMPLOYEE' };
     }
 
-    const date = data.date ? new Date(data.date) : new Date();
-    date.setUTCHours(0, 0, 0, 0);
-
+    const { start: date } = getStartOfTodayLocal(data.date);
     const existing = await attendanceRepository.findByEmployeeAndDate(empId, date);
     const scheduleDay = await getEmployeeScheduleDay(empId, date);
 
     if (existing) {
-      // If check-out is being submitted
       const checkOut = data.checkOut ? new Date(data.checkOut) : new Date();
       const breakHours = data.breakHours !== undefined ? parseFloat(data.breakHours) : (existing.breakHours || scheduleDay.breakHours || 1.0);
       const worked = calculateWorkedHours(existing.checkIn, checkOut, breakHours);
-
       const wasLate = existing.status === 'LATE';
       const status = resolveAttendanceStatus(worked, scheduleDay.dailyHours, wasLate);
 
@@ -92,7 +99,6 @@ class AttendanceService {
       });
     }
 
-    // New check-in
     const checkIn = data.checkIn ? new Date(data.checkIn) : new Date();
     const hours = checkIn.getHours();
     const minutes = checkIn.getMinutes();
@@ -105,6 +111,8 @@ class AttendanceService {
     let status = 'INCOMPLETE';
     if (checkInMin > schedGraceMin) {
       status = 'LATE';
+    } else {
+      status = 'PRESENT';
     }
 
     return attendanceRepository.create({
@@ -172,43 +180,75 @@ class AttendanceService {
       return { hasEmployeeProfile: false, checkedIn: false, record: null };
     }
 
-    const today = new Date();
-    today.setUTCHours(0, 0, 0, 0);
+    const numericEmpId = parseInt(user.employeeId, 10);
 
-    const record = await attendanceRepository.findByEmployeeAndDate(empId, today);
+    // 1. Check for any active unclosed check-in (checkOut is null)
+    const openRecord = await attendanceRepository.findOpenRecord(numericEmpId);
 
-    if (!record || !record.checkIn) {
+    if (openRecord && openRecord.checkIn) {
+      const now = Date.now();
+      const inMs = new Date(openRecord.checkIn).getTime();
+      const diffHours = Math.max(0.01, Math.round(((now - inMs) / (1000 * 60 * 60)) * 100) / 100);
+
       return {
         hasEmployeeProfile: true,
-        checkedIn: false,
-        hasCheckedInToday: false,
+        checkedIn: true,
+        hasCheckedInToday: true,
         hasCheckedOutToday: false,
-        checkInTime: null,
+        checkInTime: openRecord.checkIn,
         checkOutTime: null,
-        elapsedHours: 0,
-        workedHours: 0,
-        status: 'OUT_OF_OFFICE',
-        record: null,
+        elapsedHours: diffHours,
+        workedHours: openRecord.workedHours || 0,
+        breakHours: openRecord.breakHours || 1.0,
+        status: openRecord.status,
+        record: openRecord,
       };
     }
 
-    const isCheckedIn = Boolean(record.checkIn && !record.checkOut);
-    const now = new Date();
-    const inTime = new Date(record.checkIn);
-    const diffHours = Math.max(0, Math.round(((now.getTime() - inTime.getTime()) / (1000 * 60 * 60)) * 100) / 100);
+    // 2. No open session -> Check for today's completed attendance record
+    const { start: todayStart, dateString: todayStr } = getStartOfTodayLocal();
+    let todayRecord = await attendanceRepository.findByEmployeeAndDate(numericEmpId, todayStart);
 
+    if (!todayRecord) {
+      const latest = await attendanceRepository.findLatestRecord(numericEmpId);
+      if (latest && latest.checkIn) {
+        const dateStr = getStartOfTodayLocal(latest.date).dateString;
+        const checkInStr = getStartOfTodayLocal(latest.checkIn).dateString;
+        if (dateStr === todayStr || checkInStr === todayStr) {
+          todayRecord = latest;
+        }
+      }
+    }
+
+    if (todayRecord && todayRecord.checkIn) {
+      return {
+        hasEmployeeProfile: true,
+        checkedIn: false,
+        hasCheckedInToday: true,
+        hasCheckedOutToday: Boolean(todayRecord.checkOut),
+        checkInTime: todayRecord.checkIn,
+        checkOutTime: todayRecord.checkOut,
+        elapsedHours: todayRecord.workedHours || 0,
+        workedHours: todayRecord.workedHours || 0,
+        breakHours: todayRecord.breakHours || 1.0,
+        status: todayRecord.status,
+        record: todayRecord,
+      };
+    }
+
+    // 3. No records for today
     return {
       hasEmployeeProfile: true,
-      checkedIn: isCheckedIn,
-      hasCheckedInToday: true,
-      hasCheckedOutToday: Boolean(record.checkOut),
-      checkInTime: record.checkIn,
-      checkOutTime: record.checkOut,
-      elapsedHours: isCheckedIn ? diffHours : (record.workedHours || 0),
-      workedHours: record.workedHours || 0,
-      breakHours: record.breakHours || 0,
-      status: isCheckedIn ? record.status : 'CHECKED_OUT',
-      record,
+      checkedIn: false,
+      hasCheckedInToday: false,
+      hasCheckedOutToday: false,
+      checkInTime: null,
+      checkOutTime: null,
+      elapsedHours: 0,
+      workedHours: 0,
+      breakHours: 1.0,
+      status: 'OUT_OF_OFFICE',
+      record: null,
     };
   }
 
@@ -247,10 +287,11 @@ class AttendanceService {
 
     if (shouldCheckIn) {
       // User is not checked in -> Trigger Check In!
-      if (currentStatus.record) {
-        // Resume session: preserve accumulated worked hours
-        const previousWorkedMs = (currentStatus.record.workedHours || 0) * 3600000;
-        const adjustedCheckIn = new Date(Date.now() - previousWorkedMs);
+      if (currentStatus.record && currentStatus.record.checkOut) {
+        // Secondary check-in / Resume shift: preserve previously logged hours
+        const previousWorkedHours = currentStatus.record.workedHours || 0;
+        const previousWorkedMs = previousWorkedHours * 3600000;
+        const adjustedCheckIn = new Date(Date.now() - Math.round(previousWorkedMs));
 
         return attendanceRepository.update(currentStatus.record.id, {
           checkIn: adjustedCheckIn,
