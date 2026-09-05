@@ -124,7 +124,8 @@ export default function UsersPage() {
       (u.name && u.name.toLowerCase().includes(q)) ||
       u.email.toLowerCase().includes(q) ||
       u.role.toLowerCase().includes(q) ||
-      (u.employee?.workEmail && u.employee.workEmail.toLowerCase().includes(q))
+      (u.employee?.email && u.employee.email.toLowerCase().includes(q)) ||
+      (u.employee?.name && u.employee.name.toLowerCase().includes(q))
     );
   });
 
@@ -339,7 +340,7 @@ export default function UsersPage() {
                   <option value="">-- No Linked Employee --</option>
                   {employees.map((emp) => (
                     <option key={emp.id} value={emp.id}>
-                      {emp.firstName} {emp.lastName} ({emp.employeeCode} - {emp.department?.name})
+                      {emp.name} ({emp.employeeId} - {emp.department?.name})
                     </option>
                   ))}
                 </select>
