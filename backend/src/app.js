@@ -15,7 +15,6 @@ const payrollRoutes = require('./features/payroll/payroll.routes');
 const payslipRoutes = require('./features/payslips/payslip.routes');
 const dashboardRoutes = require('./features/dashboard/dashboard.routes');
 const auditRoutes = require('./features/audit/audit.routes');
-const aiRoutes = require('./features/ai/ai.routes');
 const userRoutes = require('./features/users/user.routes');
 const departmentRoutes = require('./features/departments/department.routes');
 
@@ -58,7 +57,6 @@ app.use('/api/payslips', payslipRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/audit-logs', auditRoutes);
 app.use('/api/audit', auditRoutes);
-app.use('/api/ai', aiRoutes);
 
 // Global Error Handler
 app.use(errorHandler);

@@ -251,7 +251,7 @@ class PayrollService {
       });
 
       return result;
-    });
+    }, { maxWait: 20000, timeout: 60000 });
   }
 
   /**
@@ -351,7 +351,7 @@ class PayrollService {
       });
 
       return paidPayrun;
-    });
+    }, { maxWait: 20000, timeout: 60000 });
   }
 }
 

@@ -159,7 +159,7 @@ class TimeOffRepository {
       }
 
       return updatedReq;
-    });
+    }, { maxWait: 20000, timeout: 60000 });
   }
 
   async rejectRequest(id, rejectionReason) {

@@ -151,7 +151,7 @@ class PayrollRepository {
       }
 
       return payrun;
-    });
+    }, { maxWait: 20000, timeout: 60000 });
   }
 }
 

@@ -12,7 +12,15 @@
     "prisma:seed": "node prisma/seed.js",
     "prisma:studio": "prisma studio"
   },
-  "keywords": ["payroll", "hr", "odoo", "erp", "express", "prisma", "postgresql"],
+  "keywords": [
+    "payroll",
+    "hr",
+    "odoo",
+    "erp",
+    "express",
+    "prisma",
+    "postgresql"
+  ],
   "author": "PeoplePay360 Team",
   "license": "MIT",
   "dependencies": {
