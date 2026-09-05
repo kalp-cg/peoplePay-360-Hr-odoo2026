@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { 
   Clock, Plus, Edit2, CheckCircle2, AlertTriangle, X, ShieldAlert, 
-  Calendar, Check, RefreshCw, AlertCircle, Copy
+  Calendar, Check, RefreshCw, AlertCircle, Copy, Sliders, ShieldCheck
 } from 'lucide-react';
 import api from '../api/client';
 import ControlPanel from '../components/ControlPanel';
@@ -16,6 +16,7 @@ export default function Attendance() {
 
   const isEmployee = user?.role === 'EMPLOYEE';
   const canCorrect = ['ADMIN', 'HR_MANAGER', 'HR_PAYROLL_MANAGER'].includes(user?.role);
+  const canManagePolicy = ['ADMIN', 'HR_MANAGER', 'HR_PAYROLL_MANAGER'].includes(user?.role);
 
   const [records, setRecords] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -28,6 +29,21 @@ export default function Attendance() {
   const [errorInfo, setErrorInfo] = useState(null);
   const [copied, setCopied] = useState(false);
 
+  // Attendance Policy Management State (Admin / HR)
+  const [policyModal, setPolicyModal] = useState(false);
+  const [policy, setPolicy] = useState(null);
+  const [policyForm, setPolicyForm] = useState({
+    name: 'Standard Enterprise Policy',
+    fullDayHours: 7.0,
+    halfDayHours: 4.0,
+    gracePeriodMins: 15,
+    overtimeThreshold: 9.0,
+    breakDeductionHours: 1.0,
+    maxShiftHoursCap: 14.0,
+  });
+  const [savingPolicy, setSavingPolicy] = useState(false);
+  const [policyToast, setPolicyToast] = useState(null);
+
   // Correction Modal State
   const [correctionModal, setCorrectionModal] = useState(false);
   const [editForm, setEditForm] = useState({
@@ -39,6 +55,7 @@ export default function Attendance() {
 
   useEffect(() => {
     fetchAttendance();
+    fetchPolicy();
     if (isEmployee) {
       fetchCurrentStatus();
     }
@@ -57,6 +74,43 @@ export default function Attendance() {
       window.removeEventListener('attendance-status-changed', handleAttUpdate);
     };
   }, [statusFilter, isEmployee, employeeIdParam]);
+
+  async function fetchPolicy() {
+    try {
+      const res = await api.get('/attendance/policy');
+      if (res.data) {
+        setPolicy(res.data);
+        setPolicyForm({
+          name: res.data.name || 'Standard Enterprise Policy',
+          fullDayHours: res.data.fullDayHours ?? 7.0,
+          halfDayHours: res.data.halfDayHours ?? 4.0,
+          gracePeriodMins: res.data.gracePeriodMins ?? 15,
+          overtimeThreshold: res.data.overtimeThreshold ?? 9.0,
+          breakDeductionHours: res.data.breakDeductionHours ?? 1.0,
+          maxShiftHoursCap: res.data.maxShiftHoursCap ?? 14.0,
+        });
+      }
+    } catch (err) {
+      console.warn('[Fetch Attendance Policy]:', err);
+    }
+  }
+
+  async function handleSavePolicy(e) {
+    e.preventDefault();
+    setSavingPolicy(true);
+    try {
+      const res = await api.put('/attendance/policy', policyForm);
+      setPolicy(res.data);
+      setPolicyToast('✓ Attendance thresholds updated dynamically! All calculations now apply immediately.');
+      setTimeout(() => setPolicyToast(null), 4000);
+      setPolicyModal(false);
+      fetchAttendance();
+    } catch (err) {
+      alert(err.response?.data?.message || err.message || 'Failed to update attendance policy');
+    } finally {
+      setSavingPolicy(false);
+    }
+  }
 
   async function fetchAttendance() {
     setLoading(true);
@@ -163,6 +217,8 @@ export default function Attendance() {
     switch (status) {
       case 'PRESENT':
         return 'bg-teal-50 text-[#00A09D] border-[#00A09D]/30';
+      case 'HALF_DAY':
+        return 'bg-amber-50 text-amber-700 border-amber-300 font-semibold';
       case 'LATE':
         return 'bg-purple-50 text-[#714B67] border-[#714B67]/30';
       case 'OVERTIME':
@@ -178,8 +234,8 @@ export default function Attendance() {
 
   // Employee aggregates
   const totalWorkedHours = filtered.reduce((sum, r) => sum + (Number(r.workedHours) || 0), 0);
-  const presentDays = filtered.filter(r => r.status === 'PRESENT' || r.status === 'OVERTIME' || r.status === 'LATE').length;
-  const onTimeDays = filtered.filter(r => r.status === 'PRESENT' || r.status === 'OVERTIME').length;
+  const presentDays = filtered.filter(r => r.status === 'PRESENT' || r.status === 'OVERTIME' || r.status === 'LATE' || r.status === 'HALF_DAY').length;
+  const onTimeDays = filtered.filter(r => r.status === 'PRESENT' || r.status === 'OVERTIME' || r.status === 'HALF_DAY').length;
   const onTimePercent = presentDays > 0 ? Math.round((onTimeDays / presentDays) * 100) : 100;
 
   return (
@@ -191,13 +247,25 @@ export default function Attendance() {
         searchQuery={isEmployee ? undefined : search}
         onSearchChange={isEmployee ? undefined : setSearch}
         actions={
-          <button
-            onClick={() => { fetchAttendance(); if (isEmployee) fetchCurrentStatus(); }}
-            className="btn-outline text-xs flex items-center gap-1.5"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-            <span>Refresh</span>
-          </button>
+          <div className="flex items-center gap-2">
+            {canManagePolicy && (
+              <button
+                onClick={() => setPolicyModal(true)}
+                className="btn-secondary text-xs flex items-center gap-1.5"
+                title="Configure Full Day, Half Day, Grace Period & Overtime rules"
+              >
+                <Sliders className="w-3.5 h-3.5 text-[#714B67]" />
+                <span>Attendance Policy &amp; Thresholds</span>
+              </button>
+            )}
+            <button
+              onClick={() => { fetchAttendance(); if (isEmployee) fetchCurrentStatus(); }}
+              className="btn-outline text-xs flex items-center gap-1.5"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+              <span>Refresh</span>
+            </button>
+          </div>
         }
       />
 
@@ -290,7 +358,7 @@ export default function Attendance() {
           <div className="px-4 py-3 border-b border-slate-200 bg-slate-50/60 flex flex-wrap items-center justify-between gap-3">
             <div className="flex flex-wrap items-center gap-1.5 text-xs">
               <span className="font-semibold text-slate-500 mr-1 text-[11px] uppercase tracking-wider">Status:</span>
-              {['', 'PRESENT', 'LATE', 'OVERTIME', 'ABSENT', 'CORRECTED'].map((s) => (
+              {['', 'PRESENT', 'HALF_DAY', 'LATE', 'OVERTIME', 'ABSENT', 'CORRECTED'].map((s) => (
                 <button
                   key={s}
                   onClick={() => setStatusFilter(s)}
@@ -483,6 +551,210 @@ export default function Attendance() {
           </div>
         </div>
       )}
+
+      {/* ----------------- ATTENDANCE POLICY & THRESHOLD MODAL (ADMIN / HR) ----------------- */}
+      {policyModal && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in">
+          <div className="bg-white border border-slate-200 rounded-lg shadow-2xl max-w-2xl w-full overflow-hidden">
+            {/* Modal Header */}
+            <div className="p-4 border-b border-slate-200 bg-[#714B67] text-white flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded bg-white/10 flex items-center justify-center">
+                  <Sliders className="w-4 h-4 text-white" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm">Attendance Policy &amp; Work Hour Thresholds</h3>
+                  <span className="text-[11px] text-white/80">Configure dynamic status brackets and grace periods</span>
+                </div>
+              </div>
+              <button onClick={() => setPolicyModal(false)} className="text-white/80 hover:text-white">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Policy Form */}
+            <form onSubmit={handleSavePolicy} className="p-6 space-y-5 text-xs">
+              
+              {/* Interactive Visual Threshold Bracket */}
+              <div className="bg-slate-50 p-3.5 rounded-lg border border-slate-200 space-y-2">
+                <div className="flex items-center justify-between text-[11px] font-semibold text-slate-700 uppercase tracking-wider">
+                  <span>Live Threshold Bracket Visualizer</span>
+                  <span className="text-slate-400 font-mono text-[10px]">Auto-Evaluated on Check-Out</span>
+                </div>
+                
+                <div className="grid grid-cols-4 gap-1.5 text-center font-mono text-[11px]">
+                  <div className="bg-rose-50 border border-rose-200 text-rose-800 p-2 rounded">
+                    <span className="block font-bold text-[10px] uppercase text-rose-600">Short / Incomplete</span>
+                    <span className="font-semibold text-xs mt-0.5 block">&lt; {policyForm.halfDayHours}h</span>
+                  </div>
+                  <div className="bg-amber-50 border border-amber-200 text-amber-800 p-2 rounded">
+                    <span className="block font-bold text-[10px] uppercase text-amber-600">Half Day</span>
+                    <span className="font-semibold text-xs mt-0.5 block">{policyForm.halfDayHours}h - {policyForm.fullDayHours}h</span>
+                  </div>
+                  <div className="bg-teal-50 border border-teal-200 text-teal-800 p-2 rounded">
+                    <span className="block font-bold text-[10px] uppercase text-teal-600">Full Day</span>
+                    <span className="font-semibold text-xs mt-0.5 block">{policyForm.fullDayHours}h - {policyForm.overtimeThreshold}h</span>
+                  </div>
+                  <div className="bg-purple-50 border border-purple-200 text-purple-800 p-2 rounded">
+                    <span className="block font-bold text-[10px] uppercase text-[#714B67]">Overtime</span>
+                    <span className="font-semibold text-xs mt-0.5 block">&ge; {policyForm.overtimeThreshold}h</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Form Input Fields Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="sm:col-span-2">
+                  <label className="block text-slate-700 font-medium mb-1">Policy Title *</label>
+                  <input
+                    type="text"
+                    required
+                    value={policyForm.name}
+                    onChange={(e) => setPolicyForm({ ...policyForm, name: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded px-3 py-1.5 text-xs focus:bg-white focus:outline-none focus:ring-1 focus:ring-[#714B67]"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-700 font-medium mb-1">
+                    Full Day Target (Hours) *
+                    <span className="text-[10px] text-slate-400 font-normal ml-1">(Marks PRESENT)</span>
+                  </label>
+                  <input
+                    type="number"
+                    required
+                    step="0.5"
+                    min="5"
+                    max="12"
+                    value={policyForm.fullDayHours}
+                    onChange={(e) => setPolicyForm({ ...policyForm, fullDayHours: parseFloat(e.target.value) || 7.0 })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded px-3 py-1.5 text-xs font-mono focus:bg-white focus:outline-none focus:ring-1 focus:ring-[#714B67]"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-700 font-medium mb-1">
+                    Half Day Minimum (Hours) *
+                    <span className="text-[10px] text-slate-400 font-normal ml-1">(Marks HALF_DAY)</span>
+                  </label>
+                  <input
+                    type="number"
+                    required
+                    step="0.5"
+                    min="2"
+                    max="6"
+                    value={policyForm.halfDayHours}
+                    onChange={(e) => setPolicyForm({ ...policyForm, halfDayHours: parseFloat(e.target.value) || 4.0 })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded px-3 py-1.5 text-xs font-mono focus:bg-white focus:outline-none focus:ring-1 focus:ring-[#714B67]"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-700 font-medium mb-1">
+                    Late Grace Period (Minutes) *
+                    <span className="text-[10px] text-slate-400 font-normal ml-1">(Grace past start time)</span>
+                  </label>
+                  <input
+                    type="number"
+                    required
+                    step="1"
+                    min="0"
+                    max="60"
+                    value={policyForm.gracePeriodMins}
+                    onChange={(e) => setPolicyForm({ ...policyForm, gracePeriodMins: parseInt(e.target.value, 10) || 15 })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded px-3 py-1.5 text-xs font-mono focus:bg-white focus:outline-none focus:ring-1 focus:ring-[#714B67]"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-700 font-medium mb-1">
+                    Overtime Threshold (Hours) *
+                    <span className="text-[10px] text-slate-400 font-normal ml-1">(Triggers OVERTIME)</span>
+                  </label>
+                  <input
+                    type="number"
+                    required
+                    step="0.5"
+                    min="8"
+                    max="16"
+                    value={policyForm.overtimeThreshold}
+                    onChange={(e) => setPolicyForm({ ...policyForm, overtimeThreshold: parseFloat(e.target.value) || 9.0 })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded px-3 py-1.5 text-xs font-mono focus:bg-white focus:outline-none focus:ring-1 focus:ring-[#714B67]"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-700 font-medium mb-1">
+                    Meal Break Auto-Deduction (Hours)
+                    <span className="text-[10px] text-slate-400 font-normal ml-1">(When worked &gt; 5h)</span>
+                  </label>
+                  <input
+                    type="number"
+                    step="0.5"
+                    min="0"
+                    max="3"
+                    value={policyForm.breakDeductionHours}
+                    onChange={(e) => setPolicyForm({ ...policyForm, breakDeductionHours: parseFloat(e.target.value) || 1.0 })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded px-3 py-1.5 text-xs font-mono focus:bg-white focus:outline-none focus:ring-1 focus:ring-[#714B67]"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-700 font-medium mb-1">
+                    Ghost Shift Auto-Cap (Hours)
+                    <span className="text-[10px] text-slate-400 font-normal ml-1">(Overnight session cap)</span>
+                  </label>
+                  <input
+                    type="number"
+                    step="1"
+                    min="10"
+                    max="24"
+                    value={policyForm.maxShiftHoursCap}
+                    onChange={(e) => setPolicyForm({ ...policyForm, maxShiftHoursCap: parseFloat(e.target.value) || 14.0 })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded px-3 py-1.5 text-xs font-mono focus:bg-white focus:outline-none focus:ring-1 focus:ring-[#714B67]"
+                  />
+                </div>
+              </div>
+
+              {/* Compliance & Audit Footer Note */}
+              <div className="bg-teal-50 border border-teal-200 p-3 rounded text-[11px] text-teal-900 flex items-center gap-2">
+                <ShieldCheck className="w-4 h-4 text-[#00A09D] shrink-0" />
+                <span>
+                  Admin updates take effect immediately. All modifications are permanently logged to the system audit trail.
+                </span>
+              </div>
+
+              {/* Modal Actions */}
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-200">
+                <button
+                  type="button"
+                  onClick={() => setPolicyModal(false)}
+                  className="btn-outline text-xs px-3 py-1.5"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={savingPolicy}
+                  className="btn-primary text-xs px-4 py-1.5 flex items-center gap-1.5 shadow-sm"
+                >
+                  <Check className="w-3.5 h-3.5" />
+                  <span>{savingPolicy ? 'Applying Rules...' : 'Save Policy Changes'}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Toast Feedback Notification */}
+      {policyToast && (
+        <div className="fixed top-20 right-6 z-50 bg-[#00A09D] text-white px-4 py-2.5 rounded-lg shadow-xl text-xs font-semibold flex items-center gap-2 animate-in slide-in-from-top-2 border border-teal-600">
+          <CheckCircle2 className="w-4 h-4 shrink-0 text-white" />
+          <span>{policyToast}</span>
+        </div>
+      )}
     </div>
   );
 }
+

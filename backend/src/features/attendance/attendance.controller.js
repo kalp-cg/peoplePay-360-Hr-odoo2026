@@ -51,6 +51,24 @@ class AttendanceController {
       next(err);
     }
   }
+
+  async getPolicy(req, res, next) {
+    try {
+      const policy = await attendanceService.getPolicy();
+      return sendSuccess(res, policy);
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  async updatePolicy(req, res, next) {
+    try {
+      const updated = await attendanceService.updatePolicy(req.body, req.user);
+      return sendSuccess(res, updated, 200, 'Attendance policy updated successfully.');
+    } catch (err) {
+      next(err);
+    }
+  }
 }
 
 module.exports = new AttendanceController();

@@ -38,6 +38,7 @@ enum ContractStatus {
 
 enum AttendanceStatus {
   PRESENT
+  HALF_DAY
   LATE
   ABSENT
   OVERTIME
@@ -407,4 +408,20 @@ model AuditLog {
   timestamp     DateTime @default(now())
 
   @@map("audit_logs")
+}
+
+model AttendancePolicy {
+  id                  Int      @id @default(autoincrement())
+  name                String   @default("Standard Enterprise Policy")
+  fullDayHours        Float    @default(7.0)
+  halfDayHours        Float    @default(4.0)
+  gracePeriodMins     Int      @default(15)
+  overtimeThreshold   Float    @default(9.0)
+  breakDeductionHours Float    @default(1.0)
+  maxShiftHoursCap    Float    @default(14.0)
+  isActive            Boolean  @default(true)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@map("attendance_policies")
 }

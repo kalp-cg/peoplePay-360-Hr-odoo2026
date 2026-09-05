@@ -118,6 +118,47 @@ class AttendanceRepository {
       },
     });
   }
+
+  async getActivePolicy() {
+    let policy = await prisma.attendancePolicy.findFirst({
+      where: { isActive: true },
+      orderBy: { id: 'asc' },
+    });
+    if (!policy) {
+      policy = await prisma.attendancePolicy.create({
+        data: {
+          name: 'Standard Enterprise Policy',
+          fullDayHours: 7.0,
+          halfDayHours: 4.0,
+          gracePeriodMins: 15,
+          overtimeThreshold: 9.0,
+          breakDeductionHours: 1.0,
+          maxShiftHoursCap: 14.0,
+          isActive: true,
+        },
+      });
+    }
+    return policy;
+  }
+
+  async updatePolicy(data) {
+    const active = await this.getActivePolicy();
+    const updatePayload = {};
+    if (data.name !== undefined) updatePayload.name = data.name;
+    if (data.fullDayHours !== undefined) updatePayload.fullDayHours = parseFloat(data.fullDayHours);
+    if (data.halfDayHours !== undefined) updatePayload.halfDayHours = parseFloat(data.halfDayHours);
+    if (data.gracePeriodMins !== undefined) updatePayload.gracePeriodMins = parseInt(data.gracePeriodMins, 10);
+    if (data.overtimeThreshold !== undefined) updatePayload.overtimeThreshold = parseFloat(data.overtimeThreshold);
+    if (data.breakDeductionHours !== undefined) updatePayload.breakDeductionHours = parseFloat(data.breakDeductionHours);
+    if (data.maxShiftHoursCap !== undefined) updatePayload.maxShiftHoursCap = parseFloat(data.maxShiftHoursCap);
+    if (data.isActive !== undefined) updatePayload.isActive = Boolean(data.isActive);
+
+    return prisma.attendancePolicy.update({
+      where: { id: active.id },
+      data: updatePayload,
+    });
+  }
 }
 
 module.exports = new AttendanceRepository();
+

@@ -37,6 +37,7 @@ async function main() {
 
   // 1. Clean existing records in proper dependency order
   console.log('[1/6] Cleaning existing database records...');
+  await prisma.attendancePolicy.deleteMany({});
   await prisma.auditLog.deleteMany({});
   await prisma.payrollWarning.deleteMany({});
   await prisma.payslipLine.deleteMany({});
@@ -122,6 +123,20 @@ async function main() {
           { dayOfWeek: 5, startTime: '09:00', endTime: '18:00', breakHours: 1.0, dailyHours: 8.0 },
         ],
       },
+    },
+  });
+
+  // Enterprise Attendance Policy
+  const enterprisePolicy = await prisma.attendancePolicy.create({
+    data: {
+      name: 'Standard Enterprise Policy',
+      fullDayHours: 7.0,
+      halfDayHours: 4.0,
+      gracePeriodMins: 15,
+      overtimeThreshold: 9.0,
+      breakDeductionHours: 1.0,
+      maxShiftHoursCap: 14.0,
+      isActive: true,
     },
   });
 
@@ -360,18 +375,52 @@ async function main() {
     for (let di = 0; di < 10; di++) {
       const dt = workDates[(emp.id + di) % workDates.length];
       const attDate = new Date(Date.UTC(dt.y, dt.m, dt.d, 0, 0, 0));
-      const isLate = (emp.id + di) % 8 === 0;
-      const checkInHour = isLate ? 9 : 8;
-      const checkInMin = isLate ? 40 : 55;
+      const isHalfDay = (emp.id + di) % 15 === 0;
+      const isOvertime = !isHalfDay && (emp.id + di) % 12 === 0;
+      const isLate = !isHalfDay && !isOvertime && (emp.id + di) % 8 === 0;
+
+      let checkInHour = 8;
+      let checkInMin = 55;
+      let checkOutHour = 18;
+      let checkOutMin = 15;
+      let breakHours = 1.0;
+      let workedHours = 8.3;
+      let status = 'PRESENT';
+
+      if (isHalfDay) {
+        checkInHour = 9;
+        checkInMin = 0;
+        checkOutHour = 13;
+        checkOutMin = 30;
+        breakHours = 0.0;
+        workedHours = 4.5;
+        status = 'HALF_DAY';
+      } else if (isOvertime) {
+        checkInHour = 8;
+        checkInMin = 30;
+        checkOutHour = 19;
+        checkOutMin = 45;
+        breakHours = 1.0;
+        workedHours = 10.25;
+        status = 'OVERTIME';
+      } else if (isLate) {
+        checkInHour = 9;
+        checkInMin = 40;
+        checkOutHour = 18;
+        checkOutMin = 15;
+        breakHours = 1.0;
+        workedHours = 7.6;
+        status = 'LATE';
+      }
 
       attendanceRecords.push({
         employeeId: emp.id,
         date: attDate,
         checkIn: new Date(Date.UTC(dt.y, dt.m, dt.d, checkInHour, checkInMin, 0)),
-        checkOut: new Date(Date.UTC(dt.y, dt.m, dt.d, 18, 15, 0)),
-        breakHours: 1.0,
-        workedHours: isLate ? 7.6 : 8.3,
-        status: isLate ? 'LATE' : 'PRESENT',
+        checkOut: new Date(Date.UTC(dt.y, dt.m, dt.d, checkOutHour, checkOutMin, 0)),
+        breakHours,
+        workedHours,
+        status,
       });
     }
   }
