@@ -3,8 +3,10 @@ import { Link } from 'react-router-dom';
 import { Calendar, Plus, Clock, Users, X, Info, Sliders } from 'lucide-react';
 import api from '../api/client';
 import ControlPanel from '../components/ControlPanel';
+import { useAuth } from '../context/AuthContext';
 
 export default function Schedules() {
+  const { user } = useAuth();
   const [schedules, setSchedules] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -72,10 +74,12 @@ export default function Schedules() {
         breadcrumbs={[{ label: 'Schedules' }]}
         actions={
           <div className="flex items-center gap-2">
-            <Link to="/attendance" className="btn-secondary text-xs flex items-center gap-1.5">
-              <Sliders className="w-3.5 h-3.5 text-[#714B67]" />
-              <span>Attendance Policy &amp; Thresholds</span>
-            </Link>
+            {user?.role === 'ADMIN' && (
+              <Link to="/attendance" className="btn-secondary text-xs flex items-center gap-1.5">
+                <Sliders className="w-3.5 h-3.5 text-[#714B67]" />
+                <span>Attendance Policy &amp; Thresholds</span>
+              </Link>
+            )}
             <button onClick={() => setShowModal(true)} className="btn-primary text-xs">
               <Plus className="w-3.5 h-3.5" />
               <span>New Schedule</span>

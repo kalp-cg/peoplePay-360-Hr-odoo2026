@@ -16,7 +16,7 @@ export default function Attendance() {
 
   const isEmployee = user?.role === 'EMPLOYEE';
   const canCorrect = ['ADMIN', 'HR_MANAGER', 'HR_PAYROLL_MANAGER'].includes(user?.role);
-  const canManagePolicy = ['ADMIN', 'HR_MANAGER', 'HR_PAYROLL_MANAGER'].includes(user?.role);
+  const canManagePolicy = user?.role === 'ADMIN';
 
   const [records, setRecords] = useState([]);
   const [loading, setLoading] = useState(true);
