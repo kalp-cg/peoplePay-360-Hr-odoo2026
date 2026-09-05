@@ -9,8 +9,8 @@ class DashboardService {
   /**
    * Get Live Aggregations from PostgreSQL database
    */
-  async getDashboardData({ departmentId, employeeType, startDate, endDate }) {
-    const cacheKey = `dash_${departmentId || ''}_${employeeType || ''}_${startDate || ''}_${endDate || ''}`;
+  async getDashboardData({ departmentId, employeeType, startDate, endDate, period }) {
+    const cacheKey = `dash_${departmentId || ''}_${employeeType || ''}_${startDate || ''}_${endDate || ''}_${period || ''}`;
     const cached = cache.get(cacheKey);
     if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
       return cached.data;
@@ -91,7 +91,7 @@ class DashboardService {
       prisma.payrun.findMany({
         where: { status: 'PAID' },
         orderBy: { periodStart: 'asc' },
-        take: 6,
+        take: 12,
       }),
     ]);
 
@@ -122,9 +122,11 @@ class DashboardService {
 
       return {
         departmentId: dept.id,
+        department: dept.name,
         departmentName: dept.name,
         code: dept.code,
         employeeCount: dept.employees.length,
+        totalCost: Math.round(grossCost || netCost),
         grossCost: Math.round(grossCost),
         netCost: Math.round(netCost),
       };
@@ -134,9 +136,11 @@ class DashboardService {
       const date = new Date(pr.periodStart);
       const monthName = date.toLocaleString('default', { month: 'short', year: 'numeric' });
       return {
+        month: monthName,
         period: monthName,
-        netPayout: pr.totalNet,
-        grossPayout: pr.totalGross,
+        netPaid: Math.round(pr.totalNet),
+        netPayout: Math.round(pr.totalNet),
+        grossPayout: Math.round(pr.totalGross),
       };
     });
 
