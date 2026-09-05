@@ -859,7 +859,13 @@ export default function Employees() {
                                 </td>
                                 <td className="px-4 py-2.5 font-mono">{new Date(c.startDate).toLocaleDateString()}</td>
                                 <td className="px-4 py-2.5 font-mono">
-                                  {c.endDate ? new Date(c.endDate).toLocaleDateString() : <span className="text-slate-400">Open-ended</span>}
+                                  {c.endDate ? (
+                                    new Date(c.endDate).toLocaleDateString()
+                                  ) : (
+                                    <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                      Ongoing
+                                    </span>
+                                  )}
                                 </td>
                                 <td className="px-4 py-2.5 font-mono font-bold text-teal-700 text-sm">
                                   ₹{c.wage?.toLocaleString()}
