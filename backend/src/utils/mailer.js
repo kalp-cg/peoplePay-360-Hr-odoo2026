@@ -6,8 +6,8 @@ let transporter = null;
 
 function getTransporter() {
   if (!transporter) {
-    const user = process.env.SMTP_USER || 'jnvtab009@gmail.com';
-    const pass = (process.env.SMTP_PASS || 'lxtk hqki lpxp kvth').replace(/\s+/g, '');
+    const user = process.env.SMTP_USER;
+    const pass = (process.env.SMTP_PASS || '').replace(/\s+/g, '');
     const host = process.env.SMTP_HOST || 'smtp.gmail.com';
     const port = parseInt(process.env.SMTP_PORT || '465', 10);
     const secure = process.env.SMTP_SECURE !== 'false';
@@ -56,7 +56,7 @@ function formatINR(val) {
  */
 async function sendMail({ to, subject, html, text, attachments = [] }) {
   const transport = getTransporter();
-  const from = process.env.SMTP_FROM || `"PeoplePay360 HR & Payroll" <${process.env.SMTP_USER || 'jnvtab009@gmail.com'}>`;
+  const from = process.env.SMTP_FROM || `"PeoplePay360 HR & Payroll" <${process.env.SMTP_USER || 'no-reply@peoplepay360.com'}>`;
 
   const info = await transport.sendMail({
     from,

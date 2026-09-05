@@ -4,3 +4,6 @@ node_modules/
 dist/
 build/
 *.log
+test_*.js
+verify_*.js
+setup_*.js
