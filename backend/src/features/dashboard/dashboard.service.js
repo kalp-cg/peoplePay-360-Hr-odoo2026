@@ -3,7 +3,7 @@ const attendanceService = require('../attendance/attendance.service');
 const profileRequestService = require('../employees/profile-request.service');
 
 const cache = new Map();
-const CACHE_TTL_MS = 8000; // 8 seconds cache for Neon PostgreSQL latency optimization
+const CACHE_TTL_MS = 1000; // 1 second cache for Neon PostgreSQL latency optimization while ensuring fast reactive filtering
 
 class DashboardService {
   /**
@@ -19,12 +19,12 @@ class DashboardService {
     // 1. Resolve period into effective dates if period is provided
     let effStartDate = startDate ? new Date(startDate) : null;
     let effEndDate = endDate ? new Date(endDate) : null;
-    if (period && !startDate && !endDate) {
+    if (period && period !== 'ALL' && !startDate && !endDate) {
       const [yearStr, monthStr] = period.split('-');
       const y = parseInt(yearStr, 10);
       const m = parseInt(monthStr, 10);
       if (!isNaN(y) && !isNaN(m)) {
-        effStartDate = new Date(Date.UTC(y, m - 1, 1));
+        effStartDate = new Date(Date.UTC(y, m - 1, 1, 0, 0, 0, 0));
         effEndDate = new Date(Date.UTC(y, m, 0, 23, 59, 59, 999));
       }
     }
@@ -75,7 +75,25 @@ class DashboardService {
       allocWhere.employeeId = { in: employeeIds.length > 0 ? employeeIds : [-1] };
     }
 
-    // 4. Parallel DB roundtrip execution via Promise.all
+    // 4. Department & Monthly trend where clauses (respecting active filters)
+    const deptWhere = {};
+    if (departmentId) {
+      deptWhere.id = parseInt(departmentId, 10);
+    }
+
+    const deptEmployeeWhere = {};
+    if (employeeType && employeeType !== 'ALL') {
+      deptEmployeeWhere.employeeType = employeeType;
+    }
+
+    const deptPayslipWhere = { status: 'PAID' };
+    if (effStartDate || effEndDate) {
+      deptPayslipWhere.payrun = { periodStart: {} };
+      if (effStartDate) deptPayslipWhere.payrun.periodStart.gte = effStartDate;
+      if (effEndDate) deptPayslipWhere.payrun.periodStart.lte = effEndDate;
+    }
+
+    // 5. Parallel DB roundtrip execution via Promise.all
     const [
       paidPayslips,
       approvedLeaves,
@@ -109,11 +127,13 @@ class DashboardService {
         where: attWhere,
       }),
       prisma.department.findMany({
+        where: deptWhere,
         include: {
           employees: {
+            where: deptEmployeeWhere,
             include: {
               payslips: {
-                where: { status: 'PAID' },
+                where: deptPayslipWhere,
               },
             },
           },
@@ -121,11 +141,22 @@ class DashboardService {
       }),
       prisma.payrun.findMany({
         where: { status: 'PAID' },
+        include: {
+          payslips: {
+            where: {
+              status: 'PAID',
+              ...(hasEmpFilter ? { employeeId: { in: employeeIds.length > 0 ? employeeIds : [-1] } } : {}),
+            },
+          },
+        },
         orderBy: { periodStart: 'asc' },
         take: 12,
       }),
       prisma.payrollWarning.findMany({
-        where: { isResolved: false },
+        where: {
+          isResolved: false,
+          ...(hasEmpFilter ? { employeeId: { in: employeeIds.length > 0 ? employeeIds : [-1] } } : {}),
+        },
         include: { employee: true, payrun: true },
         take: 6,
         orderBy: { createdAt: 'desc' },
@@ -133,6 +164,8 @@ class DashboardService {
       prisma.employee.findMany({
         where: {
           status: 'ACTIVE',
+          ...(departmentId ? { departmentId: parseInt(departmentId, 10) } : {}),
+          ...(employeeType && employeeType !== 'ALL' ? { employeeType } : {}),
           OR: [
             { bankAccountNumber: null },
             { bankAccountNumber: '' },
@@ -146,6 +179,7 @@ class DashboardService {
       prisma.contract.findMany({
         where: {
           status: 'ACTIVE',
+          ...(hasEmpFilter ? { employeeId: { in: employeeIds.length > 0 ? employeeIds : [-1] } } : {}),
           endDate: {
             not: null,
             lte: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000), // Next 60 days
@@ -196,12 +230,19 @@ class DashboardService {
     const monthlySalaryTrends = payruns.map((pr) => {
       const date = new Date(pr.periodStart);
       const monthName = date.toLocaleString('default', { month: 'short', year: 'numeric' });
+      const netPaid = hasEmpFilter
+        ? pr.payslips.reduce((sum, p) => sum + p.netSalary, 0)
+        : pr.totalNet;
+      const grossPayout = hasEmpFilter
+        ? pr.payslips.reduce((sum, p) => sum + p.grossSalary, 0)
+        : pr.totalGross;
+
       return {
         month: monthName,
         period: monthName,
-        netPaid: Math.round(pr.totalNet),
-        netPayout: Math.round(pr.totalNet),
-        grossPayout: Math.round(pr.totalGross),
+        netPaid: Math.round(netPaid),
+        netPayout: Math.round(netPaid),
+        grossPayout: Math.round(grossPayout),
       };
     });
 

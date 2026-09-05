@@ -230,7 +230,7 @@ async function main() {
     },
   });
 
-  // Employee with MISSING bank details for testing Payroll Warnings!
+  // Employee with MISSING bank details for testing Payroll Warnings! (INTERN)
   const empPriya = await prisma.employee.create({
     data: {
       employeeId: 'EMP002',
@@ -240,7 +240,7 @@ async function main() {
       departmentId: deptEng.id,
       jobPositionId: posQA.id,
       managerId: empManager.id,
-      employeeType: 'FULL_TIME',
+      employeeType: 'INTERN',
       joiningDate: new Date('2024-06-01'),
       status: 'ACTIVE',
       workingScheduleId: schedule40.id,
@@ -251,6 +251,7 @@ async function main() {
     },
   });
 
+  // Contractor Employee in Sales (CONTRACTOR)
   const empVikram = await prisma.employee.create({
     data: {
       employeeId: 'EMP003',
@@ -259,7 +260,7 @@ async function main() {
       phone: '+91 98345 67890',
       departmentId: deptSales.id,
       jobPositionId: posSalesLead.id,
-      employeeType: 'FULL_TIME',
+      employeeType: 'CONTRACTOR',
       joiningDate: new Date('2023-08-15'),
       status: 'ACTIVE',
       workingScheduleId: schedule40.id,
@@ -290,6 +291,7 @@ async function main() {
     },
   });
 
+  // Part-Time Employee in HR (PART_TIME)
   const empKavita = await prisma.employee.create({
     data: {
       employeeId: 'EMP005',
@@ -298,7 +300,7 @@ async function main() {
       phone: '+91 98567 89012',
       departmentId: deptHR.id,
       jobPositionId: posHRLead.id,
-      employeeType: 'FULL_TIME',
+      employeeType: 'PART_TIME',
       joiningDate: new Date('2023-05-01'),
       status: 'ACTIVE',
       workingScheduleId: schedule40.id,
@@ -325,6 +327,46 @@ async function main() {
       bankName: 'Bank of Baroda',
       bankIfscCode: 'BARB0005678',
       panNumber: 'ROHAN0123J',
+    },
+  });
+
+  // Employee with ON_LEAVE status (for employee directory filter testing)
+  const empMeera = await prisma.employee.create({
+    data: {
+      employeeId: 'EMP007',
+      name: 'Meera Sen',
+      email: 'meera.sen@peoplepay360.com',
+      phone: '+91 98789 01234',
+      departmentId: deptSales.id,
+      jobPositionId: posAE.id,
+      employeeType: 'FULL_TIME',
+      joiningDate: new Date('2023-11-01'),
+      status: 'ON_LEAVE',
+      workingScheduleId: schedule40.id,
+      bankAccountNumber: '556677889900',
+      bankName: 'HDFC Bank',
+      bankIfscCode: 'HDFC0002233',
+      panNumber: 'MEERA5566M',
+    },
+  });
+
+  // Employee with INACTIVE status (for employee directory filter testing)
+  const empAnil = await prisma.employee.create({
+    data: {
+      employeeId: 'EMP008',
+      name: 'Anil Kapoor',
+      email: 'anil.k@peoplepay360.com',
+      phone: '+91 98890 12345',
+      departmentId: deptEng.id,
+      jobPositionId: posDev.id,
+      employeeType: 'CONTRACTOR',
+      joiningDate: new Date('2023-02-01'),
+      status: 'INACTIVE',
+      workingScheduleId: schedule40.id,
+      bankAccountNumber: '112233445566',
+      bankName: 'ICICI Bank',
+      bankIfscCode: 'ICIC0001122',
+      panNumber: 'ANILK1122A',
     },
   });
 
@@ -564,6 +606,46 @@ async function main() {
         checkOut = new Date(`2026-08-${dayStr}T20:00:00Z`);
         worked = 10.0;
       } else if (day === 18 && emp.id === empPriya.id) {
+        status = 'ABSENT';
+        checkIn = null;
+        checkOut = null;
+        worked = 0.0;
+      }
+
+      await prisma.attendance.create({
+        data: {
+          employeeId: emp.id,
+          date,
+          checkIn,
+          checkOut,
+          breakHours: 1.0,
+          workedHours: worked,
+          status,
+        },
+      });
+    }
+  }
+
+  // Attendance Records for September 2026 (Days 1 to 5 - current simulated live workweek)
+  for (let day = 1; day <= 5; day++) {
+    const dayStr = String(day).padStart(2, '0');
+    const date = new Date(`2026-09-${dayStr}`);
+
+    for (const emp of allEmployees) {
+      let status = 'PRESENT';
+      let checkIn = new Date(`2026-09-${dayStr}T09:00:00Z`);
+      let checkOut = new Date(`2026-09-${dayStr}T18:00:00Z`);
+      let worked = 8.0;
+
+      if (day === 2 && emp.id === empRahul.id) {
+        status = 'LATE';
+        checkIn = new Date(`2026-09-${dayStr}T09:40:00Z`);
+        worked = 7.33;
+      } else if (day === 3 && emp.id === empVikram.id) {
+        status = 'OVERTIME';
+        checkOut = new Date(`2026-09-${dayStr}T20:00:00Z`);
+        worked = 10.0;
+      } else if (day === 4 && emp.id === empPriya.id) {
         status = 'ABSENT';
         checkIn = null;
         checkOut = null;

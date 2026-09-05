@@ -19,7 +19,7 @@ export default function PayrollDashboard() {
   const [recentPayruns, setRecentPayruns] = useState([]);
   const [departments, setDepartments] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [period, setPeriod] = useState('2026-09');
+  const [period, setPeriod] = useState('2026-08');
   const [employeeType, setEmployeeType] = useState('ALL');
   const [departmentId, setDepartmentId] = useState('');
 
@@ -34,7 +34,7 @@ export default function PayrollDashboard() {
   async function fetchDepartments() {
     try {
       const res = await api.get('/departments');
-      setDepartments(res.data || []);
+      setDepartments(Array.isArray(res) ? res : (res.data || []));
     } catch (err) {
       console.warn('Failed to load departments:', err);
     }
@@ -51,8 +51,8 @@ export default function PayrollDashboard() {
         api.get('/dashboard', { params }),
         api.get('/payruns'),
       ]);
-      setData(dashRes.data);
-      setRecentPayruns(prRes.data || []);
+      setData(dashRes?.data || dashRes);
+      setRecentPayruns(Array.isArray(prRes) ? prRes : (prRes?.data || []));
     } catch (err) {
       console.error('Failed to load payroll dashboard:', err);
     } finally {
@@ -150,11 +150,15 @@ export default function PayrollDashboard() {
               <select 
                 value={period} 
                 onChange={(e) => setPeriod(e.target.value)}
-                className="bg-slate-50 border border-slate-200 rounded px-3 py-1 font-semibold text-slate-800 focus:bg-white focus:outline-none"
+                className="bg-slate-50 border border-slate-200 rounded px-3 py-1 font-semibold text-slate-800 focus:bg-white focus:outline-none cursor-pointer"
               >
-                <option value="2026-09">September 2026</option>
-                <option value="2026-08">August 2026</option>
+                <option value="2026-08">August 2026 (Latest Disbursed)</option>
+                <option value="ALL">All Periods (Year to Date)</option>
+                <option value="2026-09">September 2026 (Active Run)</option>
                 <option value="2026-07">July 2026</option>
+                <option value="2026-06">June 2026</option>
+                <option value="2026-05">May 2026</option>
+                <option value="2026-04">April 2026</option>
               </select>
             </div>
 
