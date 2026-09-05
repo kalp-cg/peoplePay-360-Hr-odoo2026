@@ -14,7 +14,7 @@ class EmployeeService {
     }
 
     const q = { ...query };
-    if (user && user.role !== 'ADMIN' && q.scope !== 'all') {
+    if (user && user.role === 'HR_MANAGER' && q.scope !== 'all') {
       const subIds = await this.getSubordinateIdsForUser(user);
       if (subIds !== null) {
         q.subordinateIds = subIds;

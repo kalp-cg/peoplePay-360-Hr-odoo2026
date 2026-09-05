@@ -105,7 +105,7 @@ class ProfileRequestService {
     let result = formatted;
     if (user.role === 'EMPLOYEE') {
       result = result.filter(r => r.employeeId === user.employeeId);
-    } else if (user && user.role !== 'ADMIN' && query?.scope !== 'all') {
+    } else if (user && user.role === 'HR_MANAGER' && query?.scope !== 'all') {
       const employeeService = require('./employee.service');
       const subIds = await employeeService.getSubordinateIdsForUser(user);
       if (subIds !== null) {
