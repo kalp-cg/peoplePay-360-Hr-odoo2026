@@ -102,7 +102,7 @@ export default function Payruns() {
   async function loadPayrunDetail(id) {
     try {
       const res = await api.get(`/payruns/${id}`);
-      setSelectedPayrun(res.data);
+      setSelectedPayrun(res?.data || res);
     } catch (err) {
       console.error(err);
     }
@@ -393,8 +393,9 @@ export default function Payruns() {
     }
   }
 
-  const canCompute = user?.role === 'ADMIN' || user?.role === 'HR_PAYROLL_MANAGER' || user?.role === 'HR_PAYROLL_USER';
-  const canMarkPaid = user?.role === 'ADMIN' || user?.role === 'HR_PAYROLL_MANAGER';
+  const canCompute = ['ADMIN', 'HR_PAYROLL_MANAGER', 'HR_PAYROLL_USER'].includes(user?.role);
+  const canValidate = ['ADMIN', 'HR_PAYROLL_MANAGER'].includes(user?.role);
+  const canMarkPaid = ['ADMIN', 'HR_PAYROLL_MANAGER'].includes(user?.role);
 
   // Overall metrics across all payrun batches
   const metrics = useMemo(() => {
@@ -534,46 +535,62 @@ export default function Payruns() {
                   </button>
                 )}
 
-                {(selectedPayrun.status === 'COMPUTED' || selectedPayrun.status === 'WARNING') && canCompute && (
-                  <button
-                    onClick={handleValidate}
-                    disabled={processingAction !== null}
-                    className="btn-primary text-xs disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5 shadow-sm"
-                    title="Validate Payroll Integrity and Progress to Payment"
-                  >
-                    {processingAction === 'validating' ? (
-                      <>
-                        <RefreshCw className="w-3.5 h-3.5 animate-spin text-white" />
-                        <span>Validating...</span>
-                      </>
-                    ) : (
-                      <>
-                        <Check className="w-3.5 h-3.5 text-white" />
-                        <span>Validate</span>
-                      </>
-                    )}
-                  </button>
+                {/* Manager Validate Button or User Notice */}
+                {(selectedPayrun.status === 'COMPUTED' || selectedPayrun.status === 'WARNING') && (
+                  canValidate ? (
+                    <button
+                      onClick={handleValidate}
+                      disabled={processingAction !== null}
+                      className="btn-primary text-xs disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5 shadow-sm"
+                      title="Validate Payroll Integrity and Progress to Payment"
+                    >
+                      {processingAction === 'validating' ? (
+                        <>
+                          <RefreshCw className="w-3.5 h-3.5 animate-spin text-white" />
+                          <span>Validating...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Check className="w-3.5 h-3.5 text-white" />
+                          <span>Validate Payrun</span>
+                        </>
+                      )}
+                    </button>
+                  ) : (
+                    <div className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 text-amber-800 border border-amber-200 rounded text-xs font-semibold shadow-xs" title="Manager approval required">
+                      <ShieldAlert className="w-3.5 h-3.5 text-amber-600" />
+                      <span>Awaiting Manager Validation</span>
+                    </div>
+                  )
                 )}
 
-                {selectedPayrun.status !== 'PAID' && canMarkPaid && (
-                  <button
-                    onClick={handleMarkPaid}
-                    disabled={processingAction !== null}
-                    className="btn-primary text-xs disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5 shadow-sm"
-                    title="Commit Payout & Lock Records"
-                  >
-                    {processingAction === 'marking_paid' ? (
-                      <>
-                        <RefreshCw className="w-3.5 h-3.5 animate-spin text-white" />
-                        <span>Processing Payout...</span>
-                      </>
-                    ) : (
-                      <>
-                        <CheckCircle2 className="w-3.5 h-3.5 text-white" />
-                        <span>Mark Paid</span>
-                      </>
-                    )}
-                  </button>
+                {/* Manager Mark Paid Button or User Notice */}
+                {selectedPayrun.status === 'VALIDATED' && (
+                  canMarkPaid ? (
+                    <button
+                      onClick={handleMarkPaid}
+                      disabled={processingAction !== null}
+                      className="btn-primary text-xs disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5 shadow-sm bg-teal-600 hover:bg-teal-700 text-white"
+                      title="Commit Payout & Lock Records"
+                    >
+                      {processingAction === 'marking_paid' ? (
+                        <>
+                          <RefreshCw className="w-3.5 h-3.5 animate-spin text-white" />
+                          <span>Processing Payout...</span>
+                        </>
+                      ) : (
+                        <>
+                          <CheckCircle2 className="w-3.5 h-3.5 text-white" />
+                          <span>Mark as Paid</span>
+                        </>
+                      )}
+                    </button>
+                  ) : (
+                    <div className="flex items-center gap-1.5 px-3 py-1.5 bg-teal-50 text-teal-800 border border-teal-200 rounded text-xs font-semibold shadow-xs" title="Ready for manager payment disbursement">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-teal-600" />
+                      <span>Validated — Ready for Manager Disbursement</span>
+                    </div>
+                  )
                 )}
 
                 {selectedPayrun.status === 'PAID' && (

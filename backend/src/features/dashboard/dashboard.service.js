@@ -35,9 +35,11 @@ class DashboardService {
     if (departmentId) empWhere.departmentId = parseInt(departmentId, 10);
     if (employeeType && employeeType !== 'ALL') empWhere.employeeType = employeeType;
 
-    // Subordinate scoping for HR roles (HR_MANAGER, HR_PAYROLL_USER)
+    // Subordinate scoping:
+    // HR_MANAGER is a line manager who manages direct subordinates.
+    // ADMIN, HR_PAYROLL_MANAGER, and HR_PAYROLL_USER oversee enterprise-wide compensation & payroll.
     let subordinateIds = null;
-    if (user && user.role !== 'ADMIN' && scope !== 'all') {
+    if (user && !['ADMIN', 'HR_PAYROLL_MANAGER', 'HR_PAYROLL_USER'].includes(user.role) && scope !== 'all') {
       const employeeService = require('../employees/employee.service');
       subordinateIds = await employeeService.getSubordinateIdsForUser(user);
     }
