@@ -377,74 +377,76 @@ export default function Attendance() {
             </span>
           </div>
 
-          <table className="w-full text-left text-xs">
-            <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold uppercase tracking-wider text-[11px]">
-              <tr>
-                <th className="px-4 py-3">Date</th>
-                {!isEmployee && <th className="px-4 py-3">Employee</th>}
-                <th className="px-4 py-3">Check In</th>
-                <th className="px-4 py-3">Check Out</th>
-                <th className="px-4 py-3">Break</th>
-                <th className="px-4 py-3">Worked Hours</th>
-                <th className="px-4 py-3">Status</th>
-                {canCorrect && <th className="px-4 py-3 text-right">Actions</th>}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 text-slate-700">
-              {filtered.length === 0 ? (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs min-w-[700px]">
+              <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold uppercase tracking-wider text-[11px]">
                 <tr>
-                  <td colSpan={canCorrect ? 8 : (isEmployee ? 6 : 7)} className="text-center py-8 text-slate-400">
-                    No attendance records found.
-                  </td>
+                  <th className="px-4 py-3">Date</th>
+                  {!isEmployee && <th className="px-4 py-3">Employee</th>}
+                  <th className="px-4 py-3">Check In</th>
+                  <th className="px-4 py-3">Check Out</th>
+                  <th className="px-4 py-3">Break</th>
+                  <th className="px-4 py-3">Worked Hours</th>
+                  <th className="px-4 py-3">Status</th>
+                  {canCorrect && <th className="px-4 py-3 text-right">Actions</th>}
                 </tr>
-              ) : (
-                filtered.map((rec) => (
-                  <tr key={rec.id} className="hover:bg-slate-50 transition-colors">
-                    <td className="px-4 py-3 tabular-nums font-medium text-slate-900 font-mono">
-                      {formatDateDMY(rec.date)}
+              </thead>
+              <tbody className="divide-y divide-slate-100 text-slate-700">
+                {filtered.length === 0 ? (
+                  <tr>
+                    <td colSpan={canCorrect ? 8 : (isEmployee ? 6 : 7)} className="text-center py-8 text-slate-400">
+                      No attendance records found.
                     </td>
-                    {!isEmployee && (
-                      <td className="px-4 py-3">
-                        <span className="font-medium text-slate-900">{rec.employee?.name}</span>
-                        <span className="ml-1 text-[11px] text-slate-400 font-mono">({rec.employee?.employeeId})</span>
-                      </td>
-                    )}
-                    <td className="px-4 py-3 tabular-nums text-slate-700 font-mono">
-                      {rec.checkIn ? new Date(rec.checkIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '-'}
-                    </td>
-                    <td className="px-4 py-3 tabular-nums text-slate-700 font-mono">
-                      {rec.checkOut ? new Date(rec.checkOut).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '-'}
-                    </td>
-                    <td className="px-4 py-3 text-slate-500">{rec.breakHours}h</td>
-                    <td className="px-4 py-3 font-semibold text-teal-700 tabular-nums font-mono">
-                      {rec.workedHours} hrs
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className={`px-2.5 py-0.5 text-[10px] font-bold rounded-full border ${getStatusBadge(rec.status)}`}>
-                        {rec.status}
-                      </span>
-                      {rec.correctionReason && (
-                        <span className="block text-[10px] text-slate-400 truncate max-w-[150px]" title={rec.correctionReason}>
-                          "{rec.correctionReason}"
-                        </span>
-                      )}
-                    </td>
-                    {canCorrect && (
-                      <td className="px-4 py-3 text-right">
-                        <button
-                          onClick={() => handleOpenCorrection(rec)}
-                          className="text-slate-500 hover:text-[#714B67] hover:bg-slate-100 p-1.5 rounded transition-colors"
-                          title="Manual HR Correction"
-                        >
-                          <Edit2 className="w-3.5 h-3.5" />
-                        </button>
-                      </td>
-                    )}
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+                ) : (
+                  filtered.map((rec) => (
+                    <tr key={rec.id} className="hover:bg-slate-50 transition-colors">
+                      <td className="px-4 py-3 tabular-nums font-medium text-slate-900 font-mono">
+                        {formatDateDMY(rec.date)}
+                      </td>
+                      {!isEmployee && (
+                        <td className="px-4 py-3">
+                          <span className="font-medium text-slate-900">{rec.employee?.name}</span>
+                          <span className="ml-1 text-[11px] text-slate-400 font-mono">({rec.employee?.employeeId})</span>
+                        </td>
+                      )}
+                      <td className="px-4 py-3 tabular-nums text-slate-700 font-mono">
+                        {rec.checkIn ? new Date(rec.checkIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '-'}
+                      </td>
+                      <td className="px-4 py-3 tabular-nums text-slate-700 font-mono">
+                        {rec.checkOut ? new Date(rec.checkOut).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '-'}
+                      </td>
+                      <td className="px-4 py-3 text-slate-500">{rec.breakHours}h</td>
+                      <td className="px-4 py-3 font-semibold text-teal-700 tabular-nums font-mono">
+                        {rec.workedHours} hrs
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className={`px-2.5 py-0.5 text-[10px] font-bold rounded-full border ${getStatusBadge(rec.status)}`}>
+                          {rec.status}
+                        </span>
+                        {rec.correctionReason && (
+                          <span className="block text-[10px] text-slate-400 truncate max-w-[150px]" title={rec.correctionReason}>
+                            "{rec.correctionReason}"
+                          </span>
+                        )}
+                      </td>
+                      {canCorrect && (
+                        <td className="px-4 py-3 text-right">
+                          <button
+                            onClick={() => handleOpenCorrection(rec)}
+                            className="text-slate-500 hover:text-[#714B67] hover:bg-slate-100 p-1.5 rounded transition-colors"
+                            title="Manual HR Correction"
+                          >
+                            <Edit2 className="w-3.5 h-3.5" />
+                          </button>
+                        </td>
+                      )}
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
 
       </div>
@@ -452,7 +454,7 @@ export default function Attendance() {
       {/* MANUAL CORRECTION MODAL (FOR HR / ADMIN ONLY) */}
       {correctionModal && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in">
-          <div className="bg-white border border-slate-200 rounded-lg shadow-2xl max-w-md w-full">
+          <div className="bg-white border border-slate-200 rounded-lg shadow-2xl max-w-md w-full max-h-[90vh] overflow-y-auto">
             <div className="p-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
               <div className="flex items-center gap-2">
                 <ShieldAlert className="w-4 h-4 text-[#714B67]" />
@@ -552,12 +554,12 @@ export default function Attendance() {
         </div>
       )}
 
-      {/* ----------------- ATTENDANCE POLICY & THRESHOLD MODAL (ADMIN / HR) ----------------- */}
+      {/* ----------------- ATTENDANCE POLICY & THRESHOLD MODAL (ADMIN ONLY) ----------------- */}
       {policyModal && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in">
-          <div className="bg-white border border-slate-200 rounded-lg shadow-2xl max-w-2xl w-full overflow-hidden">
+          <div className="bg-white border border-slate-200 rounded-lg shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
             {/* Modal Header */}
-            <div className="p-4 border-b border-slate-200 bg-[#714B67] text-white flex items-center justify-between">
+            <div className="p-4 border-b border-slate-200 bg-[#714B67] text-white flex items-center justify-between sticky top-0 z-10">
               <div className="flex items-center gap-2">
                 <div className="w-7 h-7 rounded bg-white/10 flex items-center justify-center">
                   <Sliders className="w-4 h-4 text-white" />
@@ -582,7 +584,7 @@ export default function Attendance() {
                   <span className="text-slate-400 font-mono text-[10px]">Auto-Evaluated on Check-Out</span>
                 </div>
                 
-                <div className="grid grid-cols-4 gap-1.5 text-center font-mono text-[11px]">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 text-center font-mono text-[11px]">
                   <div className="bg-rose-50 border border-rose-200 text-rose-800 p-2 rounded">
                     <span className="block font-bold text-[10px] uppercase text-rose-600">Short / Incomplete</span>
                     <span className="font-semibold text-xs mt-0.5 block">&lt; {policyForm.halfDayHours}h</span>

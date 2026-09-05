@@ -164,7 +164,7 @@ export default function SalaryConfig() {
               <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-500">
                 Active Salary Structure
               </h2>
-              <div className="flex items-center gap-3 mt-1.5">
+              <div className="flex flex-wrap items-center gap-2 sm:gap-3 mt-1.5">
                 <select
                   value={selectedStructureId || ''}
                   onChange={(e) => setSelectedStructureId(Number(e.target.value))}
@@ -208,7 +208,7 @@ export default function SalaryConfig() {
           </div>
 
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
+            <table className="w-full text-left text-sm min-w-[750px]">
               <thead className="bg-slate-50 border-b border-slate-200 text-xs font-semibold uppercase text-slate-500 tracking-wider">
                 <tr>
                   <th className="py-3 px-4 w-20 text-center">Seq</th>
@@ -307,7 +307,7 @@ export default function SalaryConfig() {
       {/* New Structure Modal */}
       {isStructureModalOpen && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6 border border-slate-200">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6 border border-slate-200 max-h-[90vh] overflow-y-auto">
             <h3 className="text-base font-bold text-slate-900 mb-4">Create Salary Structure</h3>
             <form onSubmit={handleCreateStructure} className="space-y-4 text-sm">
               <div>
@@ -354,12 +354,12 @@ export default function SalaryConfig() {
       {/* Add / Edit Rule Modal */}
       {isRuleModalOpen && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-lg w-full p-6 border border-slate-200">
+          <div className="bg-white rounded-lg shadow-xl max-w-lg w-full p-6 border border-slate-200 max-h-[90vh] overflow-y-auto">
             <h3 className="text-base font-bold text-slate-900 mb-4">
               {editingRule ? `Edit Rule: ${editingRule.name}` : 'Add Salary Rule'}
             </h3>
             <form onSubmit={handleSaveRule} className="space-y-4 text-sm">
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-semibold text-slate-600 mb-1">Rule Name *</label>
                   <input
@@ -384,7 +384,7 @@ export default function SalaryConfig() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
                   <label className="block text-xs font-semibold text-slate-600 mb-1">Category *</label>
                   <select

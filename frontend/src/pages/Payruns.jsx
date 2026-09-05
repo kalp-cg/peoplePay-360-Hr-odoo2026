@@ -628,78 +628,80 @@ export default function Payruns() {
                 </h3>
               </div>
 
-              <table className="w-full text-left text-xs">
-                <thead className="bg-slate-50/50 border-b border-slate-200 text-slate-500 font-semibold">
-                  <tr>
-                    <th className="px-4 py-3">Payslip No</th>
-                    <th className="px-4 py-3">Employee</th>
-                    <th className="px-4 py-3">Worked / Total</th>
-                    <th className="px-4 py-3 font-mono">Gross</th>
-                    <th className="px-4 py-3 font-mono">Deductions</th>
-                    <th className="px-4 py-3 font-mono font-bold">Net Salary</th>
-                    <th className="px-4 py-3">Status</th>
-                    <th className="px-4 py-3 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 text-slate-700">
-                  {selectedPayrun.payslips?.map((p) => (
-                    <tr key={p.id} className="hover:bg-slate-50 transition-colors">
-                      <td className="px-4 py-3 font-mono font-semibold text-[#714B67]">
-                        {p.payslipNumber}
-                      </td>
-                      <td className="px-4 py-3 font-medium text-slate-900">
-                        {p.employee?.name}
-                        <span className="ml-1 text-[11px] text-slate-400">({p.employee?.employeeId})</span>
-                      </td>
-                      <td className="px-4 py-3 font-mono text-slate-600">
-                        {p.presentDays} / {p.workingDays}d
-                      </td>
-                      <td className="px-4 py-3 font-mono">₹{p.grossSalary?.toLocaleString()}</td>
-                      <td className="px-4 py-3 font-mono text-rose-600">-₹{p.totalDeductions?.toLocaleString()}</td>
-                      <td className="px-4 py-3 font-mono font-bold text-teal-700 text-sm">
-                        ₹{p.netSalary?.toLocaleString()}
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full border ${p.status === 'PAID'
-                            ? 'bg-teal-50 text-[#00A09D] border-[#00A09D]/30'
-                            : 'bg-purple-50 text-[#714B67] border-[#714B67]/30'
-                          }`}>
-                          {p.status}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        <div className="flex items-center justify-end gap-1.5">
-                          <button
-                            onClick={() => setViewPayslip(p)}
-                            className="btn-ghost text-[11px] py-1 px-2"
-                            title="View Itemized Breakdown"
-                          >
-                            <Eye className="w-3.5 h-3.5" />
-                            <span>Details</span>
-                          </button>
-                          <button
-                            onClick={() => handleDownloadPDF(p.id, p.payslipNumber)}
-                            className="btn-outline text-[11px] py-1 px-2"
-                            title="Printable PDF"
-                          >
-                            <FileDown className="w-3.5 h-3.5 text-teal-700" />
-                            <span>PDF</span>
-                          </button>
-                          <button
-                            onClick={() => handleSendSinglePayslip(p.id, p.employee?.name)}
-                            disabled={sendingSlipId === p.id}
-                            className="btn-outline text-[11px] py-1 px-2 text-[#714B67] hover:border-[#714B67]"
-                            title="Email Payslip directly to employee"
-                          >
-                            <Send className={`w-3.5 h-3.5 text-[#714B67] ${sendingSlipId === p.id ? 'animate-pulse' : ''}`} />
-                            <span>{sendingSlipId === p.id ? 'Sending...' : 'Email'}</span>
-                          </button>
-                        </div>
-                      </td>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs min-w-[750px]">
+                  <thead className="bg-slate-50/50 border-b border-slate-200 text-slate-500 font-semibold">
+                    <tr>
+                      <th className="px-4 py-3">Payslip No</th>
+                      <th className="px-4 py-3">Employee</th>
+                      <th className="px-4 py-3">Worked / Total</th>
+                      <th className="px-4 py-3 font-mono">Gross</th>
+                      <th className="px-4 py-3 font-mono">Deductions</th>
+                      <th className="px-4 py-3 font-mono font-bold">Net Salary</th>
+                      <th className="px-4 py-3">Status</th>
+                      <th className="px-4 py-3 text-right">Actions</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 text-slate-700">
+                    {selectedPayrun.payslips?.map((p) => (
+                      <tr key={p.id} className="hover:bg-slate-50 transition-colors">
+                        <td className="px-4 py-3 font-mono font-semibold text-[#714B67]">
+                          {p.payslipNumber}
+                        </td>
+                        <td className="px-4 py-3 font-medium text-slate-900">
+                          {p.employee?.name}
+                          <span className="ml-1 text-[11px] text-slate-400">({p.employee?.employeeId})</span>
+                        </td>
+                        <td className="px-4 py-3 font-mono text-slate-600">
+                          {p.presentDays} / {p.workingDays}d
+                        </td>
+                        <td className="px-4 py-3 font-mono">₹{p.grossSalary?.toLocaleString()}</td>
+                        <td className="px-4 py-3 font-mono text-rose-600">-₹{p.totalDeductions?.toLocaleString()}</td>
+                        <td className="px-4 py-3 font-mono font-bold text-teal-700 text-sm">
+                          ₹{p.netSalary?.toLocaleString()}
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full border ${p.status === 'PAID'
+                              ? 'bg-teal-50 text-[#00A09D] border-[#00A09D]/30'
+                              : 'bg-purple-50 text-[#714B67] border-[#714B67]/30'
+                            }`}>
+                            {p.status}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <div className="flex items-center justify-end gap-1.5">
+                            <button
+                              onClick={() => setViewPayslip(p)}
+                              className="btn-ghost text-[11px] py-1 px-2"
+                              title="View Itemized Breakdown"
+                            >
+                              <Eye className="w-3.5 h-3.5" />
+                              <span>Details</span>
+                            </button>
+                            <button
+                              onClick={() => handleDownloadPDF(p.id, p.payslipNumber)}
+                              className="btn-outline text-[11px] py-1 px-2"
+                              title="Printable PDF"
+                            >
+                              <FileDown className="w-3.5 h-3.5 text-teal-700" />
+                              <span>PDF</span>
+                            </button>
+                            <button
+                              onClick={() => handleSendSinglePayslip(p.id, p.employee?.name)}
+                              disabled={sendingSlipId === p.id}
+                              className="btn-outline text-[11px] py-1 px-2 text-[#714B67] hover:border-[#714B67]"
+                              title="Email Payslip directly to employee"
+                            >
+                              <Send className={`w-3.5 h-3.5 text-[#714B67] ${sendingSlipId === p.id ? 'animate-pulse' : ''}`} />
+                              <span>{sendingSlipId === p.id ? 'Sending...' : 'Email'}</span>
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
 
           </div>
@@ -708,7 +710,7 @@ export default function Payruns() {
           <div className="space-y-6">
 
             {/* Executive KPI Summary Cards */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               <div className="bg-white p-4 border border-slate-200 rounded-lg shadow-sm">
                 <div className="flex items-center justify-between">
                   <span className="text-xs text-slate-500 font-medium">Total Payrun Batches</span>
@@ -837,7 +839,7 @@ export default function Payruns() {
                 >
                   <FileText className="w-4 h-4" />
                   <span>All Generated Payslips</span>
-                  <span className={`ml-1.5 px-2 py-0.5 text-[10px] rounded-full font-mono font-bold ${
+                      <span className={`ml-1.5 px-2 py-0.5 text-[10px] rounded-full font-mono font-bold ${
                     activeTab === 'payslips' ? 'bg-[#00A09D] text-white' : 'bg-slate-200 text-slate-600'
                   }`}>
                     {allPayslips.length > 0 ? allPayslips.length.toLocaleString() : metrics.totalSlips.toLocaleString()}
@@ -848,7 +850,7 @@ export default function Payruns() {
               {/* TAB 1: PAYRUN BATCHES TABLE */}
               {activeTab === 'batches' && (
                 <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs">
+                  <table className="w-full text-left text-xs min-w-[750px]">
                     <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold uppercase tracking-wider text-[11px]">
                       <tr>
                         <th className="px-4 py-3">Payrun Batch</th>
@@ -898,38 +900,26 @@ export default function Payruns() {
                                     className="text-[11px] text-[#00A09D] hover:underline font-semibold flex items-center"
                                     title="View individual payslips for this batch"
                                   >
-                                    View ➔
+                                    Explore &rarr;
                                   </button>
                                 )}
                               </div>
                             </td>
-                            <td className="px-4 py-3 font-mono font-medium">₹{pr.totalGross?.toLocaleString() || 0}</td>
+                            <td className="px-4 py-3 font-mono">₹{pr.totalGross?.toLocaleString() || 0}</td>
                             <td className="px-4 py-3 font-mono font-bold text-teal-700 text-sm">
                               ₹{pr.totalNet?.toLocaleString() || 0}
                             </td>
                             <td className="px-4 py-3">
-                              <span className={`px-2.5 py-0.5 text-[10px] font-bold rounded-full border inline-flex items-center gap-1 ${
-                                pr.status === 'PAID'
-                                  ? 'bg-teal-50 text-[#00A09D] border-[#00A09D]/30'
-                                  : pr.status === 'VALIDATED'
-                                    ? 'bg-purple-50 text-[#714B67] border-[#714B67]/30'
-                                    : pr.status === 'WARNING'
-                                      ? 'bg-amber-50 text-amber-800 border-amber-300'
-                                      : pr.status === 'COMPUTED'
-                                        ? 'bg-blue-50 text-blue-700 border-blue-200'
-                                        : 'bg-slate-100 text-slate-700 border-slate-300'
-                              }`}>
-                                {pr.status === 'WARNING' && <AlertTriangle className="w-2.5 h-2.5 text-amber-600" />}
-                                {pr.status === 'PAID' && <Check className="w-2.5 h-2.5 text-[#00A09D]" />}
-                                <span>{pr.status}</span>
+                              <span className={`px-2.5 py-0.5 text-[10px] font-bold rounded-full border ${getStatusBadge(pr.status)}`}>
+                                {pr.status}
                               </span>
                             </td>
                             <td className="px-4 py-3 text-right">
                               <button
-                                onClick={() => handleOpenPayrun(pr.id)}
-                                className="btn-outline text-[11px] py-1 px-2.5 hover:border-[#714B67] hover:text-[#714B67]"
+                                onClick={() => handleOpenPayrun(pr)}
+                                className="btn-outline text-xs px-2.5 py-1 text-[#714B67] hover:border-[#714B67]"
                               >
-                                Open Processing View ➔
+                                View Sheet &rarr;
                               </button>
                             </td>
                           </tr>
@@ -945,7 +935,7 @@ export default function Payruns() {
                 <div>
                   {/* Filter & Search Bar */}
                   <div className="p-4 bg-slate-50 border-b border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-3">
-                    <div className="flex flex-1 items-center gap-3">
+                    <div className="flex flex-1 flex-col sm:flex-row items-stretch sm:items-center gap-3">
                       <div className="relative flex-1 max-w-sm">
                         <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                         <input
@@ -976,7 +966,7 @@ export default function Payruns() {
                             setBatchFilter(e.target.value);
                             setSlipPage(1);
                           }}
-                          className="text-xs bg-white border border-slate-200 rounded px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-[#714B67] max-w-xs"
+                          className="text-xs bg-white border border-slate-200 rounded px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-[#714B67] max-w-xs flex-1 sm:flex-initial"
                         >
                           <option value="ALL">All Payrun Batches ({allPayslips.length})</option>
                           {payruns.map((pr) => (
@@ -988,7 +978,7 @@ export default function Payruns() {
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex flex-wrap items-center gap-1.5">
                       <span className="text-[11px] text-slate-500 font-medium mr-1">Status:</span>
                       {['ALL', 'PAID', 'VALIDATED', 'COMPUTED', 'DRAFT'].map((st) => (
                         <button
@@ -1019,7 +1009,7 @@ export default function Payruns() {
 
                   {/* Payslips Table */}
                   <div className="overflow-x-auto">
-                    <table className="w-full text-left text-xs">
+                    <table className="w-full text-left text-xs min-w-[800px]">
                       <thead className="bg-slate-50/70 border-b border-slate-200 text-slate-500 font-semibold uppercase tracking-wider text-[10px]">
                         <tr>
                           <th className="px-4 py-3">Payslip No</th>
@@ -1171,10 +1161,10 @@ export default function Payruns() {
       {/* ----------------- TWO-STEP PAYRUN WIZARD MODAL ----------------- */}
       {wizardOpen && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in">
-          <div className="bg-white border border-slate-200 rounded-lg shadow-2xl max-w-2xl w-full">
+          <div className="bg-white border border-slate-200 rounded-lg shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
 
             {/* Wizard Header */}
-            <div className="p-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
+            <div className="p-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between sticky top-0 z-10">
               <div>
                 <h3 className="font-bold text-sm text-[#2C3E50]">Payrun Setup Wizard</h3>
                 <span className="text-[11px] text-slate-500">
@@ -1214,7 +1204,7 @@ export default function Payruns() {
                   </select>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-slate-700 font-medium mb-1">Period Start Date *</label>
                     <input
@@ -1326,8 +1316,8 @@ export default function Payruns() {
       {/* ----------------- PAYSLIP BREAKDOWN MODAL ----------------- */}
       {viewPayslip && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in">
-          <div className="bg-white border border-slate-200 rounded-lg shadow-2xl max-w-lg w-full">
-            <div className="p-4 border-b border-slate-200 bg-[#714B67] text-white flex items-center justify-between rounded-t-lg">
+          <div className="bg-white border border-slate-200 rounded-lg shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-4 border-b border-slate-200 bg-[#714B67] text-white flex items-center justify-between rounded-t-lg sticky top-0 z-10">
               <div>
                 <h3 className="font-bold text-sm">{viewPayslip.payslipNumber}</h3>
                 <span className="text-xs text-white/80">{viewPayslip.employee?.name} • {viewPayslip.employee?.employeeId}</span>
@@ -1371,12 +1361,12 @@ export default function Payruns() {
                 </span>
               </div>
 
-              <div className="pt-2 flex justify-end gap-2 border-t border-slate-200">
+              <div className="pt-2 flex flex-col sm:flex-row justify-end gap-2 border-t border-slate-200">
                 <button
                   type="button"
                   onClick={() => handleSendSinglePayslip(viewPayslip.id, viewPayslip.employee?.name)}
                   disabled={sendingSlipId === viewPayslip.id}
-                  className="btn-outline text-xs text-[#714B67] hover:border-[#714B67] flex items-center gap-1.5"
+                  className="btn-outline text-xs text-[#714B67] hover:border-[#714B67] flex items-center justify-center gap-1.5"
                 >
                   <Send className={`w-3.5 h-3.5 ${sendingSlipId === viewPayslip.id ? 'animate-pulse' : ''}`} />
                   <span>{sendingSlipId === viewPayslip.id ? 'Sending Email...' : 'Email to Employee'}</span>
@@ -1384,7 +1374,7 @@ export default function Payruns() {
                 <button
                   type="button"
                   onClick={() => handleDownloadPDF(viewPayslip.id, viewPayslip.payslipNumber)}
-                  className="btn-primary text-xs"
+                  className="btn-primary text-xs flex items-center justify-center gap-1.5"
                 >
                   <FileDown className="w-3.5 h-3.5" />
                   <span>Download PDF Document</span>

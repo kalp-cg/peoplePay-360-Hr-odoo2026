@@ -41,14 +41,14 @@ function ProtectedLayout({ children }) {
   }
 
   return (
-    <div className="min-h-screen flex bg-[#F8F9FA]">
+    <div className="min-h-screen flex bg-[#F8F9FA] overflow-x-hidden">
       {/* Fixed Non-Moving Left Sidebar */}
       <Sidebar open={mobileSidebarOpen} onClose={() => setMobileSidebarOpen(false)} />
 
       {/* Main Content: Left-padded for static sidebar, right part scrolls smoothly */}
-      <div className="flex-1 flex flex-col md:pl-64 min-h-screen w-full transition-all">
+      <div className="flex-1 flex flex-col md:pl-64 min-h-screen w-full min-w-0 transition-all">
         <TopHeader onOpenMobileSidebar={() => setMobileSidebarOpen(true)} />
-        <main className="flex-1 flex flex-col">
+        <main className="flex-1 flex flex-col min-w-0">
           {children}
         </main>
       </div>

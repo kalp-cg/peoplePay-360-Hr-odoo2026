@@ -118,24 +118,26 @@ export default function TopHeader({ onOpenMobileSidebar = () => {} }) {
       <div className="h-full px-4 sm:px-6 flex items-center justify-between">
         
         {/* Left Side: Mobile Menu Button + Current Route Title */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
           <button
             onClick={onOpenMobileSidebar}
-            className="md:hidden p-1.5 rounded-md text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors"
+            className="md:hidden p-1.5 rounded-md text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors shrink-0"
             title="Open navigation sidebar"
           >
             <Menu className="w-5 h-5" />
           </button>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
             <span className="font-semibold text-xs text-slate-400 hidden sm:inline">PeoplePay360</span>
             <span className="text-slate-300 hidden sm:inline">/</span>
-            <h2 className="font-bold text-sm text-[#2C3E50] tracking-tight">{getPageTitle()}</h2>
+            <h2 className="font-bold text-xs sm:text-sm text-[#2C3E50] tracking-tight truncate max-w-[135px] sm:max-w-none">
+              {getPageTitle()}
+            </h2>
           </div>
         </div>
 
         {/* Right Side: Punch Clock & Status */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3 shrink-0">
           
           {/* Quick Punch Clock Widget */}
           {user && (
@@ -150,7 +152,7 @@ export default function TopHeader({ onOpenMobileSidebar = () => {} }) {
                     ? `Logged ${attStatus.workedHours}h today. Click to Check In Again`
                     : 'Click to Check In for Today'
                 }
-                className={`flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-md transition-all shadow-xs cursor-pointer ${
+                className={`flex items-center gap-1.5 text-[11px] sm:text-xs font-bold px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-md transition-all shadow-xs cursor-pointer ${
                   attStatus.checkedIn
                     ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
                     : 'bg-[#00A09D] hover:bg-[#008b88] text-white'
@@ -161,9 +163,9 @@ export default function TopHeader({ onOpenMobileSidebar = () => {} }) {
                   {attStatus.loading
                     ? 'Updating...'
                     : attStatus.checkedIn
-                    ? `Checked In (${attStatus.elapsedHours}h)`
+                    ? `In (${attStatus.elapsedHours}h)`
                     : attStatus.workedHours > 0
-                    ? 'Check In Again'
+                    ? 'In Again'
                     : 'Check In'}
                 </span>
               </button>

@@ -764,8 +764,8 @@ export default function Employees() {
                     </div>
 
                     {selectedEmployee.payslips && selectedEmployee.payslips.length > 0 ? (
-                      <div className="border border-slate-200 rounded overflow-hidden shadow-2xs">
-                        <table className="w-full text-left text-xs">
+                      <div className="border border-slate-200 rounded overflow-hidden shadow-2xs overflow-x-auto">
+                        <table className="w-full text-left text-xs min-w-[700px]">
                           <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold uppercase tracking-wider text-[11px]">
                             <tr>
                               <th className="px-4 py-2.5">Payslip #</th>
@@ -856,8 +856,8 @@ export default function Employees() {
                       )}
                     </div>
 
-                    <div className="border border-slate-200 rounded overflow-hidden shadow-2xs">
-                      <table className="w-full text-left text-xs">
+                    <div className="border border-slate-200 rounded overflow-hidden shadow-2xs overflow-x-auto">
+                      <table className="w-full text-left text-xs min-w-[650px]">
                         <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold uppercase tracking-wider text-[11px]">
                           <tr>
                             <th className="px-4 py-2.5">Contract Ref</th>
@@ -1111,8 +1111,8 @@ export default function Employees() {
                   <div className="space-y-2.5 pt-1">
                     <h4 className="font-bold text-sm text-[#2C3E50]">Recent Time Off Requests</h4>
                     {selectedEmployee.timeOffRequests && selectedEmployee.timeOffRequests.length > 0 ? (
-                      <div className="border border-slate-200 rounded overflow-hidden shadow-2xs">
-                        <table className="w-full text-left text-xs">
+                      <div className="border border-slate-200 rounded overflow-hidden shadow-2xs overflow-x-auto">
+                        <table className="w-full text-left text-xs min-w-[600px]">
                           <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold uppercase tracking-wider text-[11px]">
                             <tr>
                               <th className="px-4 py-2.5">Leave Type</th>
@@ -1280,8 +1280,8 @@ export default function Employees() {
               </div>
             ) : (
               /* LIST TABLE VIEW - ODOO THEME */
-              <div className="bg-white border border-slate-200 rounded shadow-xs overflow-hidden">
-                <table className="w-full text-left text-xs">
+              <div className="bg-white border border-slate-200 rounded shadow-xs overflow-hidden overflow-x-auto">
+                <table className="w-full text-left text-xs min-w-[750px]">
                   <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold uppercase tracking-wider text-[11px]">
                     <tr>
                       <th className="px-4 py-2.5">Employee ID</th>

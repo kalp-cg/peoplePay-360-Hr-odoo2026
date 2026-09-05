@@ -305,7 +305,7 @@ export default function MyProfile() {
           </div>
 
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
+            <table className="w-full text-left text-xs min-w-[650px]">
               <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold uppercase text-[11px]">
                 <tr>
                   <th className="px-4 py-3">Date Submitted</th>
@@ -366,7 +366,7 @@ export default function MyProfile() {
       {/* REQUEST PROFILE UPDATE MODAL */}
       {showEditModal && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in">
-          <div className="bg-white border border-slate-200 rounded-lg shadow-2xl max-w-lg w-full overflow-hidden">
+          <div className="bg-white border border-slate-200 rounded-lg shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
             <div className="p-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
               <div className="flex items-center gap-2">
                 <Edit3 className="w-4 h-4 text-[#714B67]" />

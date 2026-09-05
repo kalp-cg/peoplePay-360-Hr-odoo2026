@@ -153,7 +153,7 @@ export default function UsersPage() {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6">
         {/* Intro banner */}
-        <div className="bg-white rounded-lg border border-slate-200 p-4 mb-6 shadow-sm flex items-center justify-between">
+        <div className="bg-white rounded-lg border border-slate-200 p-4 mb-6 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <div className="p-2.5 rounded bg-purple-50 border border-purple-200 text-[#714B67]">
               <Shield className="w-6 h-6" />
@@ -167,7 +167,7 @@ export default function UsersPage() {
               </p>
             </div>
           </div>
-          <div className="text-right">
+          <div className="text-left sm:text-right">
             <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider block">Total Accounts</span>
             <span className="text-xl font-bold text-slate-800">{users.length}</span>
           </div>
@@ -176,7 +176,7 @@ export default function UsersPage() {
         {/* Users Table */}
         <div className="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
+            <table className="w-full text-left text-sm min-w-[650px]">
               <thead className="bg-slate-50 border-b border-slate-200 text-xs font-semibold uppercase text-slate-500 tracking-wider">
                 <tr>
                   <th className="py-3 px-4">User</th>
@@ -272,7 +272,7 @@ export default function UsersPage() {
       {/* User Create/Edit Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6 border border-slate-200">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6 border border-slate-200 max-h-[90vh] overflow-y-auto">
             <h3 className="text-base font-bold text-slate-900 mb-4">
               {editingUser ? `Edit User: ${editingUser.name || editingUser.email}` : 'Create New User'}
             </h3>

@@ -67,7 +67,7 @@ export default function Sidebar({ open = false, onClose = () => {} }) {
         }`}
       >
         {/* Top Header & Brand */}
-        <div>
+        <div className="shrink-0">
           <div className="h-16 px-5 flex items-center justify-between border-b border-white/10 bg-black/10">
             <Link to="/" onClick={onClose} className="flex items-center gap-2.5 group">
               <div className="w-8 h-8 rounded-lg bg-[#00A09D] flex items-center justify-center text-white font-black text-sm shadow-md group-hover:scale-105 transition-transform">
@@ -91,45 +91,45 @@ export default function Sidebar({ open = false, onClose = () => {} }) {
               <X className="w-5 h-5" />
             </button>
           </div>
+        </div>
 
-          {/* Navigation Links */}
-          <div className="px-3 py-4 space-y-1 overflow-y-auto max-h-[calc(100vh-14rem)]">
-            <div className="px-3 pb-2 text-[10px] font-bold uppercase tracking-wider text-teal-200/60">
-              Enterprise Modules
-            </div>
-
-            {filteredNav.map((item) => {
-              const Icon = item.icon;
-              const active = isActivePath(item.path);
-
-              return (
-                <Link
-                  key={item.path}
-                  to={item.path}
-                  onClick={onClose}
-                  className={`flex items-center gap-3 px-3 py-2.5 rounded-md text-xs font-semibold transition-all relative group ${
-                    active
-                      ? 'bg-white/15 text-white shadow-xs font-bold'
-                      : 'text-white/75 hover:text-white hover:bg-white/10'
-                  }`}
-                >
-                  {/* Left Accent Bar for Active State */}
-                  {active && (
-                    <span className="absolute left-0 top-1.5 bottom-1.5 w-1 bg-[#00A09D] rounded-r" />
-                  )}
-
-                  <Icon className={`w-4 h-4 shrink-0 transition-colors ${
-                    active ? 'text-[#00A09D]' : 'text-white/70 group-hover:text-white'
-                  }`} />
-                  <span>{item.label}</span>
-                </Link>
-              );
-            })}
+        {/* Navigation Links - flex-1 min-h-0 overflow-y-auto */}
+        <div className="flex-1 min-h-0 px-3 py-4 space-y-1 overflow-y-auto">
+          <div className="px-3 pb-2 text-[10px] font-bold uppercase tracking-wider text-teal-200/60">
+            Enterprise Modules
           </div>
+
+          {filteredNav.map((item) => {
+            const Icon = item.icon;
+            const active = isActivePath(item.path);
+
+            return (
+              <Link
+                key={item.path}
+                to={item.path}
+                onClick={onClose}
+                className={`flex items-center gap-3 px-3 py-2.5 rounded-md text-xs font-semibold transition-all relative group ${
+                  active
+                    ? 'bg-white/15 text-white shadow-xs font-bold'
+                    : 'text-white/75 hover:text-white hover:bg-white/10'
+                }`}
+              >
+                {/* Left Accent Bar for Active State */}
+                {active && (
+                  <span className="absolute left-0 top-1.5 bottom-1.5 w-1 bg-[#00A09D] rounded-r" />
+                )}
+
+                <Icon className={`w-4 h-4 shrink-0 transition-colors ${
+                  active ? 'text-[#00A09D]' : 'text-white/70 group-hover:text-white'
+                }`} />
+                <span>{item.label}</span>
+              </Link>
+            );
+          })}
         </div>
 
         {/* Bottom Profile & Logout Footer */}
-        <div className="p-3 border-t border-white/10 bg-black/15 space-y-2">
+        <div className="shrink-0 p-3 border-t border-white/10 bg-black/15 space-y-2">
           {user && (
             <div className="px-3 py-2 rounded-lg bg-white/5 border border-white/10 flex items-center gap-3">
               <div className="w-8 h-8 rounded-full bg-[#00A09D] text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-xs">
