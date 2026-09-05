@@ -128,9 +128,12 @@ class AttendanceService {
       return {
         hasEmployeeProfile: true,
         checkedIn: false,
+        hasCheckedInToday: false,
+        hasCheckedOutToday: false,
         checkInTime: null,
         checkOutTime: null,
         elapsedHours: 0,
+        workedHours: 0,
         status: 'OUT_OF_OFFICE',
         record: null,
       };
@@ -144,9 +147,13 @@ class AttendanceService {
     return {
       hasEmployeeProfile: true,
       checkedIn: isCheckedIn,
+      hasCheckedInToday: true,
+      hasCheckedOutToday: Boolean(record.checkOut),
       checkInTime: record.checkIn,
       checkOutTime: record.checkOut,
       elapsedHours: isCheckedIn ? diffHours : (record.workedHours || 0),
+      workedHours: record.workedHours || 0,
+      breakHours: record.breakHours || 0,
       status: isCheckedIn ? record.status : 'CHECKED_OUT',
       record,
     };
@@ -162,8 +169,12 @@ class AttendanceService {
     if (!currentStatus.checkedIn) {
       // User is not checked in -> Trigger Check In!
       if (currentStatus.record) {
-        // Resume session: clear checkout
+        // Resume session: preserve accumulated worked hours
+        const previousWorkedMs = (currentStatus.record.workedHours || 0) * 3600000;
+        const adjustedCheckIn = new Date(Date.now() - previousWorkedMs);
+
         return attendanceRepository.update(currentStatus.record.id, {
+          checkIn: adjustedCheckIn,
           checkOut: null,
           status: currentStatus.record.status === 'LATE' ? 'LATE' : 'PRESENT',
         });

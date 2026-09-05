@@ -57,7 +57,10 @@ export default function Attendance() {
       if (res.data) {
         setAttStatus({
           checkedIn: res.data.checkedIn,
-          elapsedHours: res.data.elapsedHours,
+          elapsedHours: res.data.elapsedHours || 0,
+          workedHours: res.data.workedHours || res.data.elapsedHours || 0,
+          hasCheckedInToday: res.data.hasCheckedInToday ?? Boolean(res.data.checkInTime),
+          hasCheckedOutToday: res.data.hasCheckedOutToday ?? Boolean(res.data.checkOutTime),
           loading: false,
         });
       }
@@ -186,7 +189,11 @@ export default function Attendance() {
                   <h2 className="text-base font-bold text-[#2C3E50]">{user?.name}</h2>
                   <div className="text-xs text-slate-500 mt-0.5 flex items-center gap-2">
                     <span className="font-mono text-[#00A09D] font-semibold">
-                      {attStatus.checkedIn ? '● Currently Checked In' : '○ Currently Checked Out'}
+                      {attStatus.checkedIn 
+                        ? '● Currently Checked In' 
+                        : (attStatus.hasCheckedOutToday || attStatus.workedHours > 0)
+                        ? `Shift Done (${attStatus.workedHours}h logged today)`
+                        : '○ Currently Checked Out'}
                     </span>
                     {attStatus.checkedIn && (
                       <span className="bg-slate-100 text-slate-600 px-2 py-0.5 rounded text-[11px] font-mono">
@@ -207,7 +214,15 @@ export default function Attendance() {
                 }`}
               >
                 <Clock className="w-4 h-4" />
-                <span>{attStatus.loading ? 'Updating Punch...' : (attStatus.checkedIn ? 'Check Out for Today' : 'Check In for Today')}</span>
+                <span>
+                  {attStatus.loading 
+                    ? 'Updating Punch...' 
+                    : attStatus.checkedIn 
+                    ? 'Check Out for Today' 
+                    : (attStatus.hasCheckedOutToday || attStatus.workedHours > 0)
+                    ? 'Check In Again / Resume Shift'
+                    : 'Check In for Today'}
+                </span>
               </button>
             </div>
 
