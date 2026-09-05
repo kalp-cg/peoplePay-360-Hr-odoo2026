@@ -2,11 +2,20 @@ const prisma = require('../../config/database');
 const attendanceService = require('../attendance/attendance.service');
 const profileRequestService = require('../employees/profile-request.service');
 
+const cache = new Map();
+const CACHE_TTL_MS = 8000; // 8 seconds cache for Neon PostgreSQL latency optimization
+
 class DashboardService {
   /**
    * Get Live Aggregations from PostgreSQL database
    */
   async getDashboardData({ departmentId, employeeType, startDate, endDate }) {
+    const cacheKey = `dash_${departmentId || ''}_${employeeType || ''}_${startDate || ''}_${endDate || ''}`;
+    const cached = cache.get(cacheKey);
+    if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
+      return cached.data;
+    }
+
     // 1. Build employee filter
     const empWhere = {};
     if (departmentId) empWhere.departmentId = parseInt(departmentId, 10);
@@ -18,53 +27,18 @@ class DashboardService {
     });
     const employeeIds = filteredEmployees.map((e) => e.id);
 
-    // 2. Payslip & Payrun Aggregations
-    const payslipWhere = {
-      status: 'PAID',
-    };
-    if (employeeIds.length > 0) {
-      payslipWhere.employeeId = { in: employeeIds };
-    }
+    // 2. Build Query Where clauses
+    const payslipWhere = { status: 'PAID' };
+    if (employeeIds.length > 0) payslipWhere.employeeId = { in: employeeIds };
     if (startDate || endDate) {
-      payslipWhere.payrun = {
-        periodStart: {},
-      };
+      payslipWhere.payrun = { periodStart: {} };
       if (startDate) payslipWhere.payrun.periodStart.gte = new Date(startDate);
       if (endDate) payslipWhere.payrun.periodStart.lte = new Date(endDate);
     }
 
-    const paidPayslips = await prisma.payslip.findMany({
-      where: payslipWhere,
-      include: {
-        employee: { select: { departmentId: true, name: true } },
-        payrun: { select: { periodStart: true, name: true } },
-      },
-    });
-
-    const totalNetSalaryPaid = paidPayslips.reduce((sum, p) => sum + p.netSalary, 0);
-    const totalGrossSalaryPaid = paidPayslips.reduce((sum, p) => sum + p.grossSalary, 0);
-    const payslipsCount = paidPayslips.length;
-    const averageSalary = payslipsCount > 0 ? Math.round(totalNetSalaryPaid / payslipsCount) : 0;
-
-    // 3. Time Off Summary
     const timeOffWhere = {};
     if (employeeIds.length > 0) timeOffWhere.employeeId = { in: employeeIds };
 
-    const approvedLeaves = await prisma.timeOffRequest.findMany({
-      where: { ...timeOffWhere, status: 'APPROVED' },
-    });
-    const totalApprovedLeaveDays = approvedLeaves.reduce((sum, r) => sum + r.durationDays, 0);
-
-    const pendingLeaves = await prisma.timeOffRequest.findMany({
-      where: { ...timeOffWhere, status: 'PENDING' },
-    });
-
-    const allocations = await prisma.timeOffAllocation.aggregate({
-      where: employeeIds.length > 0 ? { employeeId: { in: employeeIds } } : {},
-      _sum: { allocatedDays: true, takenDays: true, remainingDays: true },
-    });
-
-    // 4. Attendance Summary
     const attWhere = {};
     if (employeeIds.length > 0) attWhere.employeeId = { in: employeeIds };
     if (startDate || endDate) {
@@ -73,9 +47,60 @@ class DashboardService {
       if (endDate) attWhere.date.lte = new Date(endDate);
     }
 
-    const attendances = await prisma.attendance.findMany({
-      where: attWhere,
-    });
+    // 3. Parallel DB roundtrip execution via Promise.all
+    const [
+      paidPayslips,
+      approvedLeaves,
+      pendingLeaves,
+      allocations,
+      attendances,
+      departments,
+      payruns
+    ] = await Promise.all([
+      prisma.payslip.findMany({
+        where: payslipWhere,
+        include: {
+          employee: { select: { departmentId: true, name: true } },
+          payrun: { select: { periodStart: true, name: true } },
+        },
+      }),
+      prisma.timeOffRequest.findMany({
+        where: { ...timeOffWhere, status: 'APPROVED' },
+      }),
+      prisma.timeOffRequest.findMany({
+        where: { ...timeOffWhere, status: 'PENDING' },
+      }),
+      prisma.timeOffAllocation.aggregate({
+        where: employeeIds.length > 0 ? { employeeId: { in: employeeIds } } : {},
+        _sum: { allocatedDays: true, takenDays: true, remainingDays: true },
+      }),
+      prisma.attendance.findMany({
+        where: attWhere,
+      }),
+      prisma.department.findMany({
+        include: {
+          employees: {
+            include: {
+              payslips: {
+                where: { status: 'PAID' },
+              },
+            },
+          },
+        },
+      }),
+      prisma.payrun.findMany({
+        where: { status: 'PAID' },
+        orderBy: { periodStart: 'asc' },
+        take: 6,
+      }),
+    ]);
+
+    const totalNetSalaryPaid = paidPayslips.reduce((sum, p) => sum + p.netSalary, 0);
+    const totalGrossSalaryPaid = paidPayslips.reduce((sum, p) => sum + p.grossSalary, 0);
+    const payslipsCount = paidPayslips.length;
+    const averageSalary = payslipsCount > 0 ? Math.round(totalNetSalaryPaid / payslipsCount) : 0;
+
+    const totalApprovedLeaveDays = approvedLeaves.reduce((sum, r) => sum + r.durationDays, 0);
 
     const attCounts = {
       present: attendances.filter((a) => a.status === 'PRESENT').length,
@@ -89,19 +114,6 @@ class DashboardService {
     const totalAtt = attendances.length;
     const positiveAtt = attCounts.present + attCounts.overtime;
     const attendanceHealthPercent = totalAtt > 0 ? Math.round((positiveAtt / totalAtt) * 100) : 100;
-
-    // 5. Chart 1: Salary Cost by Department
-    const departments = await prisma.department.findMany({
-      include: {
-        employees: {
-          include: {
-            payslips: {
-              where: { status: 'PAID' },
-            },
-          },
-        },
-      },
-    });
 
     const departmentSalaryCost = departments.map((dept) => {
       const deptPayslips = dept.employees.flatMap((e) => e.payslips);
@@ -118,13 +130,6 @@ class DashboardService {
       };
     });
 
-    // 6. Chart 2: Monthly Net Salary Trends
-    const payruns = await prisma.payrun.findMany({
-      where: { status: 'PAID' },
-      orderBy: { periodStart: 'asc' },
-      take: 6,
-    });
-
     const monthlySalaryTrends = payruns.map((pr) => {
       const date = new Date(pr.periodStart);
       const monthName = date.toLocaleString('default', { month: 'short', year: 'numeric' });
@@ -135,7 +140,7 @@ class DashboardService {
       };
     });
 
-    return {
+    const result = {
       kpis: {
         totalNetSalaryPaid: Math.round(totalNetSalaryPaid),
         totalGrossSalaryPaid: Math.round(totalGrossSalaryPaid),
@@ -164,6 +169,9 @@ class DashboardService {
         },
       },
     };
+
+    cache.set(cacheKey, { timestamp: Date.now(), data: result });
+    return result;
   }
 
   /**

@@ -77,6 +77,15 @@ export default function App() {
       />
 
       <Route
+        path="/employees/:id"
+        element={
+          <ProtectedLayout>
+            <Employees />
+          </ProtectedLayout>
+        }
+      />
+
+      <Route
         path="/my-profile"
         element={
           <ProtectedLayout>
@@ -96,6 +105,15 @@ export default function App() {
 
       <Route
         path="/contracts"
+        element={
+          <ProtectedLayout>
+            <Contracts />
+          </ProtectedLayout>
+        }
+      />
+
+      <Route
+        path="/contracts/:id"
         element={
           <ProtectedLayout>
             <Contracts />
@@ -132,6 +150,24 @@ export default function App() {
 
       <Route
         path="/payroll"
+        element={
+          <ProtectedLayout>
+            <Payruns />
+          </ProtectedLayout>
+        }
+      />
+
+      <Route
+        path="/payroll/payruns/:id"
+        element={
+          <ProtectedLayout>
+            <Payruns />
+          </ProtectedLayout>
+        }
+      />
+
+      <Route
+        path="/payroll/:id"
         element={
           <ProtectedLayout>
             <Payruns />
