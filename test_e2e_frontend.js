@@ -200,6 +200,8 @@ async function runE2ETests() {
   });
 
   // 10. Salary Structures & Rules
+  let activeSalaryStructureId = 1;
+  let sampleEmployeeIds = [1, 2];
   await test('Frontend queries Salary Structures and Sequential Rules', async () => {
     const res = await request({
       hostname: '127.0.0.1',
@@ -211,6 +213,7 @@ async function runE2ETests() {
     if (res.status !== 200 || !res.data.data || res.data.data.length === 0) {
       throw new Error(`Failed to load salary structures: ${JSON.stringify(res.data)}`);
     }
+    activeSalaryStructureId = res.data.data[0].id;
     const rules = res.data.data[0].salaryRules;
     if (!rules || rules.length < 5) {
       throw new Error(`Expected at least 5 sequential salary rules, found: ${rules?.length}`);
@@ -222,12 +225,15 @@ async function runE2ETests() {
     const res = await request({
       hostname: '127.0.0.1',
       port: 5173,
-      path: '/api/payruns/eligible-employees?salaryStructureId=1&periodStart=2026-09-01&periodEnd=2026-09-30',
+      path: `/api/payruns/eligible-employees?salaryStructureId=${activeSalaryStructureId}&periodStart=2026-09-01&periodEnd=2026-09-30`,
       method: 'GET',
       headers: { Authorization: `Bearer ${adminToken}` },
     });
     if (res.status !== 200 || !Array.isArray(res.data.data)) {
       throw new Error(`Eligible employees query failed: ${JSON.stringify(res.data)}`);
+    }
+    if (res.data.data.length > 0) {
+      sampleEmployeeIds = res.data.data.slice(0, 2).map((e) => e.id);
     }
   });
 
@@ -247,10 +253,10 @@ async function runE2ETests() {
       },
       {
         name: 'Payrun - Test Frontend E2E Matrix',
-        salaryStructureId: 1,
+        salaryStructureId: activeSalaryStructureId,
         periodStart: '2026-09-01',
         periodEnd: '2026-09-30',
-        employeeIds: [1, 2],
+        employeeIds: sampleEmployeeIds,
       }
     );
     if (res.status !== 201 || !res.data.data?.id) {

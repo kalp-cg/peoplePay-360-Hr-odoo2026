@@ -136,7 +136,7 @@ fi
 
 # Start backend in background
 cd "$BACKEND_DIR"
-node src/server.js &
+node --watch src/server.js &
 BACKEND_PID=$!
 
 # Start frontend dev server
