@@ -47,7 +47,10 @@ export default function Navbar() {
       if (res.data) {
         setAttStatus({
           checkedIn: res.data.checkedIn,
-          elapsedHours: res.data.elapsedHours,
+          elapsedHours: res.data.elapsedHours || 0,
+          workedHours: res.data.workedHours || res.data.elapsedHours || 0,
+          hasCheckedInToday: res.data.hasCheckedInToday ?? Boolean(res.data.checkInTime),
+          hasCheckedOutToday: res.data.hasCheckedOutToday ?? Boolean(res.data.checkOutTime),
           loading: false,
         });
       }
@@ -93,7 +96,7 @@ export default function Navbar() {
 
   const navItems = [
     { label: 'Dashboard', path: '/', icon: BarChart3, roles: ['ADMIN', 'HR_MANAGER', 'HR_PAYROLL_USER', 'HR_PAYROLL_MANAGER', 'EMPLOYEE'] },
-    { label: user?.role === 'EMPLOYEE' ? 'My Profile' : 'Employees', path: '/employees', icon: Users, roles: ['ADMIN', 'HR_MANAGER', 'HR_PAYROLL_USER', 'HR_PAYROLL_MANAGER', 'EMPLOYEE'] },
+    { label: user?.role === 'EMPLOYEE' ? 'My Profile' : 'Employees', path: user?.role === 'EMPLOYEE' ? '/my-profile' : '/employees', icon: Users, roles: ['ADMIN', 'HR_MANAGER', 'HR_PAYROLL_USER', 'HR_PAYROLL_MANAGER', 'EMPLOYEE'] },
     { label: 'Contracts', path: '/contracts', icon: FileText, roles: ['ADMIN', 'HR_MANAGER', 'HR_PAYROLL_USER', 'HR_PAYROLL_MANAGER'] },
     { label: 'Schedules', path: '/schedules', icon: Calendar, roles: ['ADMIN', 'HR_MANAGER'] },
     { label: 'Attendance', path: '/attendance', icon: Clock, roles: ['ADMIN', 'HR_MANAGER', 'EMPLOYEE', 'HR_PAYROLL_USER', 'HR_PAYROLL_MANAGER'] },
@@ -165,10 +168,22 @@ export default function Navbar() {
                   }`}
                 >
                   <span className={`w-2 h-2 rounded-full ${attStatus.checkedIn ? 'bg-teal-200 animate-pulse' : 'bg-slate-300'}`}></span>
-                  <span>{attStatus.checkedIn ? 'Check Out' : 'Check In'}</span>
+                  <span>
+                    {attStatus.loading 
+                      ? 'Updating...' 
+                      : attStatus.checkedIn 
+                      ? 'Check Out' 
+                      : (attStatus.hasCheckedOutToday || attStatus.workedHours > 0) 
+                      ? 'Check In Again' 
+                      : 'Check In'}
+                  </span>
                 </button>
                 <div className="ml-2 pl-2 border-l border-white/20 text-slate-200 font-mono text-[11px] hidden md:block">
-                  {attStatus.checkedIn ? `${attStatus.elapsedHours}h elapsed` : 'Out of office'}
+                  {attStatus.checkedIn 
+                    ? `${attStatus.elapsedHours}h active` 
+                    : (attStatus.hasCheckedOutToday || attStatus.workedHours > 0)
+                    ? `Logged ${attStatus.workedHours}h today`
+                    : 'Out of office'}
                 </div>
               </div>
             )}
@@ -235,7 +250,15 @@ export default function Navbar() {
                 }`}
               >
                 <Clock className="w-3.5 h-3.5" />
-                <span>{attStatus.checkedIn ? 'Check Out' : 'Check In'}</span>
+                <span>
+                  {attStatus.loading 
+                    ? 'Updating...' 
+                    : attStatus.checkedIn 
+                    ? 'Check Out' 
+                    : (attStatus.hasCheckedOutToday || attStatus.workedHours > 0) 
+                    ? 'Check In Again' 
+                    : 'Check In'}
+                </span>
               </button>
             )}
           </div>

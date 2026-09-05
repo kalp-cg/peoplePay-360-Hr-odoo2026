@@ -10,6 +10,15 @@ class DashboardController {
       next(err);
     }
   }
+
+  async getEmployeePortal(req, res, next) {
+    try {
+      const data = await dashboardService.getEmployeePortalData(req.user);
+      return sendSuccess(res, data);
+    } catch (err) {
+      next(err);
+    }
+  }
 }
 
 module.exports = new DashboardController();

@@ -21,31 +21,39 @@ class ContractService {
 
   async createContract(data, user) {
     const empId = parseInt(data.employeeId, 10);
-    const startDate = new Date(data.startDate);
+    const newStartDate = new Date(data.startDate);
 
-    // Overlap prevention: If new contract is ACTIVE, check existing active contracts
+    // Overlap prevention & Automatic Expiration:
+    // If the new contract is ACTIVE (or status not specified), close all existing active contracts for this employee
     if (data.status === 'ACTIVE' || !data.status) {
-      const existingActive = await prisma.contract.findFirst({
+      const activeContracts = await prisma.contract.findMany({
         where: {
           employeeId: empId,
           status: 'ACTIVE',
-          OR: [
-            { endDate: null },
-            { endDate: { gte: startDate } },
-          ],
         },
       });
 
-      if (existingActive) {
-        // Automatically expire or close the previous open-ended contract up to startDate - 1 day
-        const dayBefore = new Date(startDate);
+      for (const oldContract of activeContracts) {
+        // Calculate the day immediately before the new contract's start date
+        const dayBefore = new Date(newStartDate);
         dayBefore.setDate(dayBefore.getDate() - 1);
+
+        // Ensure endDate is never before oldContract's startDate
+        let finalEndDate = dayBefore;
+        if (finalEndDate < new Date(oldContract.startDate)) {
+          finalEndDate = new Date(oldContract.startDate);
+        }
+
+        const dateFormatted = finalEndDate.toISOString().slice(0, 10);
+        const autoNote = `[Automatically closed on ${dateFormatted} upon activation of new contract]`;
+        const updatedNotes = oldContract.notes ? `${oldContract.notes} ${autoNote}` : autoNote;
+
         await prisma.contract.update({
-          where: { id: existingActive.id },
+          where: { id: oldContract.id },
           data: {
-            endDate: dayBefore,
+            endDate: finalEndDate,
             status: 'EXPIRED',
-            notes: (existingActive.notes || '') + ' [Closed upon creation of new contract]',
+            notes: updatedNotes,
           },
         });
       }

@@ -1,4 +1,6 @@
 const prisma = require('../../config/database');
+const attendanceService = require('../attendance/attendance.service');
+const profileRequestService = require('../employees/profile-request.service');
 
 class DashboardService {
   /**
@@ -161,6 +163,85 @@ class DashboardService {
           pendingRequests: pendingLeaves.length,
         },
       },
+    };
+  }
+
+  /**
+   * Fast aggregated endpoint for Employee Portal
+   * Resolves employee record, attendance, allocations, and genuine past payslips in 1 round-trip
+   */
+  async getEmployeePortalData(user) {
+    const empId = user.employeeId;
+    if (!empId) {
+      throw { statusCode: 400, message: 'User has no associated employee profile.', code: 'NO_EMPLOYEE_PROFILE' };
+    }
+
+    const now = new Date();
+    // Strictly filter out current and future periods: only past completed months where periodEnd < current month start
+    const todayCutoff = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+
+    const [employee, attendanceLogs, attStatus, allocations, leaveTypes, pastPayslips] = await Promise.all([
+      prisma.employee.findUnique({
+        where: { id: empId },
+        include: {
+          department: { select: { id: true, name: true } },
+          jobPosition: { select: { id: true, title: true } },
+          manager: { select: { id: true, name: true } },
+          contracts: {
+            where: { status: 'ACTIVE' },
+            include: { salaryStructure: true },
+            take: 1,
+          },
+        },
+      }),
+      prisma.attendance.findMany({
+        where: { employeeId: empId },
+        orderBy: { date: 'desc' },
+        take: 5,
+      }),
+      attendanceService.getCurrentStatus(user),
+      prisma.timeOffAllocation.findMany({
+        where: { employeeId: empId },
+        include: { timeOffType: true },
+      }),
+      prisma.timeOffType.findMany({
+        orderBy: { id: 'asc' },
+      }),
+      prisma.payslip.findMany({
+        where: {
+          employeeId: empId,
+          payrun: {
+            periodEnd: { lt: todayCutoff },
+          },
+          status: 'PAID',
+        },
+        include: {
+          payrun: true,
+        },
+        orderBy: {
+          payrun: {
+            periodStart: 'desc',
+          },
+        },
+      }),
+    ]);
+
+    let pendingRequests = [];
+    try {
+      const allReqs = await profileRequestService.getAllRequests({ status: 'PENDING' }, user);
+      pendingRequests = (allReqs || []).filter((r) => r.status === 'PENDING');
+    } catch (err) {
+      pendingRequests = [];
+    }
+
+    return {
+      employee,
+      attendanceLogs,
+      attStatus,
+      allocations,
+      leaveTypes,
+      pastPayslips,
+      pendingRequests,
     };
   }
 }

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { FileText, Plus, CheckCircle, Clock, Calendar, AlertCircle, X, ArrowRight } from 'lucide-react';
 import api from '../api/client';
 import ControlPanel from '../components/ControlPanel';
+import { formatDateDMY } from '../utils/formatters';
 
 export default function Contracts() {
   const [contracts, setContracts] = useState([]);
@@ -150,9 +151,15 @@ export default function Contracts() {
                     {c.employee?.name} <span className="text-[11px] text-slate-400">({c.employee?.employeeId})</span>
                   </td>
                   <td className="px-4 py-3">{c.employee?.department?.name}</td>
-                  <td className="px-4 py-3 font-mono">{new Date(c.startDate).toLocaleDateString()}</td>
+                  <td className="px-4 py-3 font-mono">{formatDateDMY(c.startDate)}</td>
                   <td className="px-4 py-3 font-mono">
-                    {c.endDate ? new Date(c.endDate).toLocaleDateString() : <span className="text-slate-400">Ongoing (NULL)</span>}
+                    {c.endDate ? (
+                      formatDateDMY(c.endDate)
+                    ) : (
+                      <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                        Ongoing
+                      </span>
+                    )}
                   </td>
                   <td className="px-4 py-3 font-mono font-bold text-teal-700 text-sm">
                     ₹{c.wage?.toLocaleString()}
@@ -173,13 +180,11 @@ export default function Contracts() {
           </table>
         </div>
 
-        {/* Demo Highlight Callout for Evaluators */}
+        {/* Automatic Expiration Rule Banner */}
         <div className="bg-purple-50/50 border border-purple-200 p-4 rounded-lg flex items-start gap-3 text-xs text-slate-700">
           <FileText className="w-5 h-5 text-[#714B67] shrink-0 mt-0.5" />
           <div>
-            <span className="font-bold text-[#714B67]">Historical Contract Rule Demonstration:</span> Look at <b>Rahul Sharma (EMP001)</b>.
-            He has <b>CON/2026/0001 (2025 at ₹40,000)</b> which is <i>Expired</i>, and <b>CON/2026/0002 (from 2026 at ₹50,000)</b> which is <i>Running</i>.
-            When you run September 2026 Payrun, the payroll engine automatically selects the ₹50,000 contract!
+            <span className="font-bold text-[#714B67]">Automatic Contract Expiration Flow:</span> When an employee has an <b>Ongoing</b> contract and a new contract is issued (e.g. from today or a future date), the engine <b>automatically sets the previous contract's end date</b> to the day before the new contract starts and marks it as <b>Expired</b>. This ensures deterministic, non-overlapping wage calculations for every payrun.
           </div>
         </div>
 
