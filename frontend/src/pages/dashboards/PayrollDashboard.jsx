@@ -435,20 +435,29 @@ export default function PayrollDashboard() {
                   </tr>
                 ) : (
                   recentPayruns.map((pr) => (
-                    <tr key={pr.id} className="hover:bg-slate-50">
-                      <td className="px-4 py-3 font-semibold text-slate-900">{pr.name}</td>
+                    <tr key={pr.id} className="hover:bg-slate-50 transition-colors">
+                      <td className="px-4 py-3 font-semibold text-slate-900">
+                        <Link to={`/payroll/${pr.id}`} className="hover:text-[#714B67] hover:underline flex items-center gap-1.5">
+                          <span>{pr.name}</span>
+                        </Link>
+                      </td>
                       <td className="px-4 py-3 font-mono text-[11px]">{formatPeriodRange(pr.periodStart, pr.periodEnd)}</td>
                       <td className="px-4 py-3 font-mono font-bold text-teal-700">₹{Number(pr.totalNet || 0).toLocaleString()}</td>
                       <td className="px-4 py-3 font-mono">{pr._count?.payslips ?? pr.payslips?.length ?? 0}</td>
                       <td className="px-4 py-3 text-right">
-                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                          pr.status === 'PAID' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
-                          pr.status === 'VALIDATED' ? 'bg-teal-50 text-[#00A09D] border border-teal-200' :
-                          pr.status === 'COMPUTED' ? 'bg-purple-50 text-[#714B67] border border-purple-200' :
-                          'bg-slate-100 text-slate-700 border border-slate-200'
-                        }`}>
-                          {pr.status}
-                        </span>
+                        <div className="flex items-center justify-end gap-2">
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                            pr.status === 'PAID' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
+                            pr.status === 'VALIDATED' ? 'bg-teal-50 text-[#00A09D] border border-teal-200' :
+                            pr.status === 'COMPUTED' ? 'bg-purple-50 text-[#714B67] border border-purple-200' :
+                            'bg-slate-100 text-slate-700 border border-slate-200'
+                          }`}>
+                            {pr.status}
+                          </span>
+                          <Link to={`/payroll/${pr.id}`} className="btn-outline text-[11px] px-2 py-0.5 text-[#714B67] hover:border-[#714B67]">
+                            View &rarr;
+                          </Link>
+                        </div>
                       </td>
                     </tr>
                   ))
