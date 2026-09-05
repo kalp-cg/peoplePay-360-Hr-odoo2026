@@ -60,6 +60,26 @@ export default function Attendance() {
       fetchCurrentStatus();
     }
 
+    // Auto-poll every 8 seconds so Admin sees live punches from all employees in real time
+    const pollInterval = setInterval(() => {
+      fetchAttendance();
+      if (isEmployee) fetchCurrentStatus();
+    }, 8000);
+
+    // Cross-tab/window sync when punches happen in other windows/tabs
+    const handleStorage = (e) => {
+      if (e.key === 'peoplepay_attendance_sync') {
+        fetchAttendance();
+        if (isEmployee) fetchCurrentStatus();
+      }
+    };
+
+    // Re-fetch immediately when user switches focus to this tab/window
+    const handleFocus = () => {
+      fetchAttendance();
+      if (isEmployee) fetchCurrentStatus();
+    };
+
     const handleAttUpdate = (e) => {
       if (e?.detail?.checkedIn !== undefined) {
         setAttStatus(prev => ({ ...prev, checkedIn: e.detail.checkedIn }));
@@ -67,13 +87,28 @@ export default function Attendance() {
       fetchAttendance();
       if (isEmployee) fetchCurrentStatus();
     };
+
     window.addEventListener('attendance-updated', handleAttUpdate);
     window.addEventListener('attendance-status-changed', handleAttUpdate);
+    window.addEventListener('storage', handleStorage);
+    window.addEventListener('focus', handleFocus);
+
     return () => {
+      clearInterval(pollInterval);
       window.removeEventListener('attendance-updated', handleAttUpdate);
       window.removeEventListener('attendance-status-changed', handleAttUpdate);
+      window.removeEventListener('storage', handleStorage);
+      window.removeEventListener('focus', handleFocus);
     };
   }, [statusFilter, isEmployee, employeeIdParam]);
+
+  // Re-fetch with backend search query on debounced search input
+  useEffect(() => {
+    const debounce = setTimeout(() => {
+      fetchAttendance();
+    }, 300);
+    return () => clearTimeout(debounce);
+  }, [search]);
 
   async function fetchPolicy() {
     try {
@@ -113,14 +148,14 @@ export default function Attendance() {
   }
 
   async function fetchAttendance() {
-    setLoading(true);
     try {
       const params = {
         status: statusFilter || undefined,
         employeeId: employeeIdParam || undefined,
+        search: search?.trim() || undefined,
       };
       const res = await api.get('/attendance', { params });
-      setRecords(res.data);
+      setRecords(res.data || []);
     } catch (err) {
       console.error(err);
     } finally {
@@ -205,11 +240,19 @@ export default function Attendance() {
   }
 
   const filtered = records.filter((r) => {
-    const q = search.toLowerCase();
+    const q = (search || '').trim().toLowerCase();
+    if (!q) return true;
+    const empName = (r.employee?.name || '').toLowerCase();
+    const empCode = (r.employee?.employeeId || '').toLowerCase();
+    const empEmail = (r.employee?.email || '').toLowerCase();
+    const deptName = (r.employee?.department?.name || '').toLowerCase();
+    const status = (r.status || '').toLowerCase();
     return (
-      r.employee?.name?.toLowerCase().includes(q) ||
-      r.employee?.employeeId?.toLowerCase().includes(q) ||
-      r.status?.toLowerCase().includes(q)
+      empName.includes(q) ||
+      empCode.includes(q) ||
+      empEmail.includes(q) ||
+      deptName.includes(q) ||
+      status.includes(q)
     );
   });
 

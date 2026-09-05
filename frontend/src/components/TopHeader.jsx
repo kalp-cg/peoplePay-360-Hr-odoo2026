@@ -43,13 +43,21 @@ export default function TopHeader({ onOpenMobileSidebar = () => {} }) {
       fetchAttendanceStatus();
     };
 
+    const handleStorage = (e) => {
+      if (e.key === 'peoplepay_attendance_sync') {
+        fetchAttendanceStatus();
+      }
+    };
+
     window.addEventListener('attendance-status-changed', handleSync);
     window.addEventListener('attendance-updated', handleSync);
+    window.addEventListener('storage', handleStorage);
 
     return () => {
       clearInterval(interval);
       window.removeEventListener('attendance-status-changed', handleSync);
       window.removeEventListener('attendance-updated', handleSync);
+      window.removeEventListener('storage', handleStorage);
     };
   }, [user?.id, user?.email]);
 
@@ -74,10 +82,7 @@ export default function TopHeader({ onOpenMobileSidebar = () => {} }) {
 
   async function handleAttendanceAction(action) {
     const nextCheckedIn = action === 'CHECK_IN';
-    setAttStatus((prev) => ({ ...prev, checkedIn: nextCheckedIn, loading: true }));
-    window.dispatchEvent(new CustomEvent('attendance-status-changed', {
-      detail: { checkedIn: nextCheckedIn, action }
-    }));
+    setAttStatus((prev) => ({ ...prev, loading: true }));
 
     try {
       const res = await api.post('/attendance/quick-toggle', { action });
@@ -86,6 +91,7 @@ export default function TopHeader({ onOpenMobileSidebar = () => {} }) {
       window.dispatchEvent(new CustomEvent('attendance-status-changed', {
         detail: { checkedIn: res.data?.checkedIn ?? nextCheckedIn, record: res.data }
       }));
+      localStorage.setItem('peoplepay_attendance_sync', Date.now().toString());
     } catch (err) {
       console.error('[Attendance Action Error]:', err);
       setErrorInfo({

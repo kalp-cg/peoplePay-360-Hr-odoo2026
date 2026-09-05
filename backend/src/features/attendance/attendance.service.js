@@ -109,6 +109,16 @@ class AttendanceService {
     const scheduleDay = await getEmployeeScheduleDay(empId, date);
 
     if (existing) {
+      if (data.checkIn && !data.checkOut) {
+        // Secondary check-in / start fresh from 0
+        return attendanceRepository.update(existing.id, {
+          checkIn: new Date(data.checkIn),
+          checkOut: null,
+          workedHours: 0,
+          status: 'PRESENT',
+        });
+      }
+
       const checkOut = data.checkOut ? new Date(data.checkOut) : new Date();
       const breakHours = data.breakHours !== undefined
         ? parseFloat(data.breakHours)
@@ -371,15 +381,13 @@ class AttendanceService {
     if (shouldCheckIn) {
       // User is not checked in -> Trigger Check In!
       if (currentStatus.record && currentStatus.record.checkOut) {
-        // Secondary check-in / Resume shift: preserve previously logged hours
-        const previousWorkedHours = currentStatus.record.workedHours || 0;
-        const previousWorkedMs = previousWorkedHours * 3600000;
-        const adjustedCheckIn = new Date(Date.now() - Math.round(previousWorkedMs));
-
+        // Checking in again after check-out: start clock fresh from 0 at current timestamp!
+        const now = new Date();
         return attendanceRepository.update(currentStatus.record.id, {
-          checkIn: adjustedCheckIn,
+          checkIn: now,
           checkOut: null,
-          status: currentStatus.record.status === 'LATE' ? 'LATE' : 'PRESENT',
+          workedHours: 0,
+          status: 'PRESENT',
         });
       } else {
         // First check in of the day

@@ -1,7 +1,7 @@
 const prisma = require('../../config/database');
 
 class AttendanceRepository {
-  async findAll({ employeeId, startDate, endDate, status }) {
+  async findAll({ employeeId, startDate, endDate, status, search }) {
     const where = {};
     if (employeeId) where.employeeId = parseInt(employeeId, 10);
     if (status) where.status = status;
@@ -9,6 +9,14 @@ class AttendanceRepository {
       where.date = {};
       if (startDate) where.date.gte = new Date(startDate);
       if (endDate) where.date.lte = new Date(endDate);
+    }
+    if (search && search.trim()) {
+      const q = search.trim();
+      where.OR = [
+        { employee: { name: { contains: q, mode: 'insensitive' } } },
+        { employee: { employeeId: { contains: q, mode: 'insensitive' } } },
+        { employee: { email: { contains: q, mode: 'insensitive' } } },
+      ];
     }
 
     return prisma.attendance.findMany({
@@ -27,7 +35,7 @@ class AttendanceRepository {
           select: { id: true, name: true, email: true },
         },
       },
-      orderBy: { date: 'desc' },
+      orderBy: [{ date: 'desc' }, { id: 'desc' }],
     });
   }
 

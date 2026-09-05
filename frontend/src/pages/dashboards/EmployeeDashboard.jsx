@@ -120,27 +120,34 @@ export default function EmployeeDashboard() {
       }
       fetchEmployeePortalData();
     };
+    const handleStorage = (e) => {
+      if (e.key === 'peoplepay_attendance_sync') {
+        fetchEmployeePortalData();
+      }
+    };
+
     window.addEventListener('attendance-status-changed', handleSync);
     window.addEventListener('attendance-updated', handleSync);
+    window.addEventListener('storage', handleStorage);
     return () => {
       window.removeEventListener('attendance-status-changed', handleSync);
       window.removeEventListener('attendance-updated', handleSync);
+      window.removeEventListener('storage', handleStorage);
     };
   }, []);
 
   async function handleAttendanceAction(action) {
     const nextCheckedIn = action === 'CHECK_IN';
-    setAttStatus(prev => ({ ...prev, checkedIn: nextCheckedIn, loading: true }));
-    window.dispatchEvent(new CustomEvent('attendance-status-changed', {
-      detail: { checkedIn: nextCheckedIn, action }
-    }));
+    setAttStatus(prev => ({ ...prev, loading: true }));
 
     try {
       const res = await api.post('/attendance/quick-toggle', { action });
       await fetchEmployeePortalData();
+      window.dispatchEvent(new CustomEvent('attendance-updated'));
       window.dispatchEvent(new CustomEvent('attendance-status-changed', {
         detail: { checkedIn: res.data?.checkedIn ?? nextCheckedIn, record: res.data }
       }));
+      localStorage.setItem('peoplepay_attendance_sync', Date.now().toString());
       
       setToast({
         type: 'success',
