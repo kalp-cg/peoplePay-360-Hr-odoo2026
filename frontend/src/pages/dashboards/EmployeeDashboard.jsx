@@ -50,8 +50,16 @@ export default function EmployeeDashboard() {
   const [toast, setToast] = useState(null);
 
   useEffect(() => {
+    setAttStatus({
+      checkedIn: false,
+      elapsedHours: 0,
+      workedHours: 0,
+      hasCheckedInToday: false,
+      hasCheckedOutToday: false,
+      loading: true,
+    });
     fetchEmployeePortalData();
-  }, [user]);
+  }, [user?.id, user?.email]);
 
   // Live timer tick every 1000ms when checked in
   useEffect(() => {
@@ -112,27 +120,34 @@ export default function EmployeeDashboard() {
       }
       fetchEmployeePortalData();
     };
+    const handleStorage = (e) => {
+      if (e.key === 'peoplepay_attendance_sync') {
+        fetchEmployeePortalData();
+      }
+    };
+
     window.addEventListener('attendance-status-changed', handleSync);
     window.addEventListener('attendance-updated', handleSync);
+    window.addEventListener('storage', handleStorage);
     return () => {
       window.removeEventListener('attendance-status-changed', handleSync);
       window.removeEventListener('attendance-updated', handleSync);
+      window.removeEventListener('storage', handleStorage);
     };
   }, []);
 
   async function handleAttendanceAction(action) {
     const nextCheckedIn = action === 'CHECK_IN';
-    setAttStatus(prev => ({ ...prev, checkedIn: nextCheckedIn, loading: true }));
-    window.dispatchEvent(new CustomEvent('attendance-status-changed', {
-      detail: { checkedIn: nextCheckedIn, action }
-    }));
+    setAttStatus(prev => ({ ...prev, loading: true }));
 
     try {
       const res = await api.post('/attendance/quick-toggle', { action });
       await fetchEmployeePortalData();
+      window.dispatchEvent(new CustomEvent('attendance-updated'));
       window.dispatchEvent(new CustomEvent('attendance-status-changed', {
         detail: { checkedIn: res.data?.checkedIn ?? nextCheckedIn, record: res.data }
       }));
+      localStorage.setItem('peoplepay_attendance_sync', Date.now().toString());
       
       setToast({
         type: 'success',
@@ -555,8 +570,8 @@ export default function EmployeeDashboard() {
             </div>
 
             {attendanceLogs.length > 0 ? (
-              <div className="border border-slate-200 rounded-lg overflow-hidden">
-                <table className="w-full text-left text-xs">
+              <div className="border border-slate-200 rounded-lg overflow-hidden overflow-x-auto">
+                <table className="w-full text-left text-xs min-w-[500px]">
                   <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold uppercase text-[10px]">
                     <tr>
                       <th className="px-3 py-2.5">Date (DD/MM/YYYY)</th>

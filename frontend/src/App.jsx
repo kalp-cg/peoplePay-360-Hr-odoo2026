@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
-import Navbar from './components/Navbar';
+import Sidebar from './components/Sidebar';
+import TopHeader from './components/TopHeader';
 
 // Pages
 import Dashboard from './pages/Dashboard';
@@ -20,6 +21,7 @@ import MyProfile from './pages/MyProfile';
 function ProtectedLayout({ children }) {
   const { user, loading } = useAuth();
   const location = useLocation();
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
   if (loading) {
     return (
@@ -39,11 +41,17 @@ function ProtectedLayout({ children }) {
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#F8F9FA]">
-      <Navbar />
-      <main className="flex-1 flex flex-col">
-        {children}
-      </main>
+    <div className="min-h-screen flex bg-[#F8F9FA] overflow-x-hidden">
+      {/* Fixed Non-Moving Left Sidebar */}
+      <Sidebar open={mobileSidebarOpen} onClose={() => setMobileSidebarOpen(false)} />
+
+      {/* Main Content: Left-padded for static sidebar, right part scrolls smoothly */}
+      <div className="flex-1 flex flex-col md:pl-64 min-h-screen w-full min-w-0 transition-all">
+        <TopHeader onOpenMobileSidebar={() => setMobileSidebarOpen(true)} />
+        <main className="flex-1 flex flex-col min-w-0">
+          {children}
+        </main>
+      </div>
     </div>
   );
 }

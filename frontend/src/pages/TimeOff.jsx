@@ -206,10 +206,10 @@ export default function TimeOff() {
         )}
 
         {/* Navigation Tabs */}
-        <div className="bg-white border border-slate-200 rounded-lg px-4 flex gap-6 text-xs font-semibold shadow-sm">
+        <div className="bg-white border border-slate-200 rounded-lg px-4 flex gap-6 text-xs font-semibold shadow-sm overflow-x-auto">
           <button
             onClick={() => setActiveTab('requests')}
-            className={`py-3.5 border-b-2 transition-colors flex items-center gap-2 ${
+            className={`py-3.5 border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${
               activeTab === 'requests'
                 ? 'border-[#714B67] text-[#714B67]'
                 : 'border-transparent text-slate-500 hover:text-slate-800'
@@ -220,7 +220,7 @@ export default function TimeOff() {
           </button>
           <button
             onClick={() => setActiveTab('allocations')}
-            className={`py-3.5 border-b-2 transition-colors flex items-center gap-2 ${
+            className={`py-3.5 border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${
               activeTab === 'allocations'
                 ? 'border-[#714B67] text-[#714B67]'
                 : 'border-transparent text-slate-500 hover:text-slate-800'
@@ -232,7 +232,7 @@ export default function TimeOff() {
           {isHR && (
             <button
               onClick={() => setActiveTab('types')}
-              className={`py-3.5 border-b-2 transition-colors flex items-center gap-2 ${
+              className={`py-3.5 border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${
                 activeTab === 'types'
                   ? 'border-[#714B67] text-[#714B67]'
                   : 'border-transparent text-slate-500 hover:text-slate-800'
@@ -246,8 +246,8 @@ export default function TimeOff() {
 
         {/* ----------------- TAB 1: REQUESTS ----------------- */}
         {activeTab === 'requests' && (
-          <div className="bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden">
-            <table className="w-full text-left text-xs">
+          <div className="bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden overflow-x-auto">
+            <table className="w-full text-left text-xs min-w-[700px]">
               <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold uppercase tracking-wider text-[11px]">
                 <tr>
                   {!isEmployee && <th className="px-4 py-3">Employee</th>}
@@ -318,8 +318,8 @@ export default function TimeOff() {
 
         {/* ----------------- TAB 2: ALLOCATIONS LEDGER ----------------- */}
         {activeTab === 'allocations' && (
-          <div className="bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden">
-            <table className="w-full text-left text-xs">
+          <div className="bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden overflow-x-auto">
+            <table className="w-full text-left text-xs min-w-[650px]">
               <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold uppercase tracking-wider text-[11px]">
                 <tr>
                   {!isEmployee && <th className="px-4 py-3">Employee</th>}
@@ -339,13 +339,11 @@ export default function TimeOff() {
                         <span className="ml-1 text-[11px] text-slate-400 font-mono">({a.employee?.employeeId})</span>
                       </td>
                     )}
-                    <td className="px-4 py-3 font-medium text-[#714B67]">{a.timeOffType?.name}</td>
-                    <td className="px-4 py-3 font-mono text-slate-600">{a.allocatedDays} Days</td>
-                    <td className="px-4 py-3 font-mono font-semibold text-amber-700">{a.takenDays} Days</td>
-                    <td className="px-4 py-3 font-mono font-bold text-teal-700 text-sm">
-                      {a.remainingDays} Days
-                    </td>
-                    <td className="px-4 py-3 font-mono text-slate-500">{a.year}</td>
+                    <td className="px-4 py-3 font-semibold text-[#714B67]">{a.timeOffType?.name}</td>
+                    <td className="px-4 py-3 font-mono font-bold text-slate-800">{a.allocatedDays} Days</td>
+                    <td className="px-4 py-3 font-mono text-slate-500">{a.takenDays || 0} Days</td>
+                    <td className="px-4 py-3 font-mono font-extrabold text-teal-700">{a.remainingDays} Days</td>
+                    <td className="px-4 py-3 font-mono text-slate-400">{a.year}</td>
                   </tr>
                 ))}
               </tbody>
@@ -355,8 +353,8 @@ export default function TimeOff() {
 
         {/* ----------------- TAB 3: TYPES ----------------- */}
         {activeTab === 'types' && (
-          <div className="bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden">
-            <table className="w-full text-left text-xs">
+          <div className="bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden overflow-x-auto">
+            <table className="w-full text-left text-xs min-w-[650px]">
               <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold uppercase tracking-wider text-[11px]">
                 <tr>
                   <th className="px-4 py-3">Leave Type Name</th>
@@ -394,8 +392,8 @@ export default function TimeOff() {
       {/* SUBMIT REQUEST MODAL */}
       {showRequestModal && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in">
-          <div className="bg-white border border-slate-200 rounded-lg shadow-2xl max-w-md w-full">
-            <div className="p-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
+          <div className="bg-white border border-slate-200 rounded-lg shadow-2xl max-w-md w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-4 border-b border-slate-200 flex items-center justify-between bg-slate-50 sticky top-0 z-10">
               <h3 className="font-bold text-sm text-[#2C3E50]">Submit Time Off Request</h3>
               <button onClick={() => setShowRequestModal(false)} className="text-slate-400 hover:text-slate-600">
                 <X className="w-4 h-4" />
@@ -417,7 +415,7 @@ export default function TimeOff() {
                 </select>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-slate-700 font-medium mb-1">Start Date *</label>
                   <input
@@ -479,8 +477,8 @@ export default function TimeOff() {
       {/* CREATE ALLOCATION MODAL (HR ONLY) */}
       {showAllocModal && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in">
-          <div className="bg-white border border-slate-200 rounded-lg shadow-2xl max-w-md w-full">
-            <div className="p-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
+          <div className="bg-white border border-slate-200 rounded-lg shadow-2xl max-w-md w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-4 border-b border-slate-200 flex items-center justify-between bg-slate-50 sticky top-0 z-10">
               <h3 className="font-bold text-sm text-[#2C3E50]">Assign Leave Allocation</h3>
               <button onClick={() => setShowAllocModal(false)} className="text-slate-400 hover:text-slate-600">
                 <X className="w-4 h-4" />
@@ -503,7 +501,7 @@ export default function TimeOff() {
                 </select>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-slate-700 font-medium mb-1">Time Off Type *</label>
                   <select
@@ -546,8 +544,8 @@ export default function TimeOff() {
       {/* Configure Leave Type Modal */}
       {showTypeModal && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in">
-          <div className="bg-white border border-slate-200 rounded-lg shadow-2xl max-w-md w-full">
-            <div className="p-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
+          <div className="bg-white border border-slate-200 rounded-lg shadow-2xl max-w-md w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-4 border-b border-slate-200 flex items-center justify-between bg-slate-50 sticky top-0 z-10">
               <h3 className="font-bold text-sm text-[#2C3E50]">Configure Leave Type</h3>
               <button onClick={() => setShowTypeModal(false)} className="text-slate-400 hover:text-slate-600">
                 <X className="w-4 h-4" />
@@ -555,7 +553,7 @@ export default function TimeOff() {
             </div>
 
             <form onSubmit={handleCreateType} className="p-6 space-y-4 text-xs">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-slate-700 font-medium mb-1">Name *</label>
                   <input

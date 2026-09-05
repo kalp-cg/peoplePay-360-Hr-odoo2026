@@ -137,7 +137,7 @@ export default function Contracts() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 space-y-4">
         
         {/* Filter bar */}
-        <div className="flex items-center gap-3 text-xs bg-white p-3 rounded-lg border border-slate-200">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-xs bg-white p-3 rounded-lg border border-slate-200">
           <span className="font-semibold text-slate-600">Filter Status:</span>
           <button
             onClick={() => setStatusFilter('')}
@@ -160,8 +160,8 @@ export default function Contracts() {
         </div>
 
         {/* Contracts Table */}
-        <div className="bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden">
-          <table className="w-full text-left text-xs">
+        <div className="bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden overflow-x-auto">
+          <table className="w-full text-left text-xs min-w-[700px]">
             <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold uppercase tracking-wider text-[11px]">
               <tr>
                 <th className="px-4 py-3">Contract Ref</th>
@@ -377,8 +377,8 @@ export default function Contracts() {
       {/* CREATE CONTRACT MODAL */}
       {showModal && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in">
-          <div className="bg-white border border-slate-200 rounded-lg shadow-2xl max-w-lg w-full">
-            <div className="p-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
+          <div className="bg-white border border-slate-200 rounded-lg shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-4 border-b border-slate-200 flex items-center justify-between bg-slate-50 sticky top-0 z-10">
               <h3 className="font-bold text-sm text-[#2C3E50]">Issue New Employment Contract</h3>
               <button onClick={() => setShowModal(false)} className="text-slate-400 hover:text-slate-600">
                 <X className="w-4 h-4" />
@@ -401,7 +401,7 @@ export default function Contracts() {
                 </select>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-slate-700 font-medium mb-1">Start Date *</label>
                   <input

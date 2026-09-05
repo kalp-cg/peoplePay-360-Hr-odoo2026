@@ -57,7 +57,7 @@ export default function ControlPanel({
 
             {/* Search Bar */}
             {onSearchChange && (
-              <div className="relative flex-1 sm:flex-initial min-w-[180px] max-w-xs">
+              <div className="relative flex-1 sm:flex-initial min-w-[130px] sm:min-w-[180px] max-w-xs">
                 <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
                 <input
                   type="text"
@@ -70,7 +70,7 @@ export default function ControlPanel({
             )}
 
             {/* Primary & Secondary Action Buttons */}
-            {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
+            {actions && <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">{actions}</div>}
 
             {/* Kanban / List View Mode Toggle */}
             {viewMode && onViewModeChange && (

@@ -9,8 +9,11 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:push": "prisma db push",
-    "prisma:seed": "node prisma/seed.js",
+    "prisma:seed": "node prisma/seed-enterprise.js",
     "prisma:studio": "prisma studio"
+  },
+  "prisma": {
+    "seed": "node prisma/seed-enterprise.js"
   },
   "keywords": [
     "payroll",

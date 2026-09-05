@@ -1,9 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Calendar, Plus, Clock, Users, X, Info } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Calendar, Plus, Clock, Users, X, Info, Sliders } from 'lucide-react';
 import api from '../api/client';
 import ControlPanel from '../components/ControlPanel';
+import { useAuth } from '../context/AuthContext';
 
 export default function Schedules() {
+  const { user } = useAuth();
   const [schedules, setSchedules] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -70,10 +73,18 @@ export default function Schedules() {
         subtitle="Standardized Working Hours & Shift Patterns"
         breadcrumbs={[{ label: 'Schedules' }]}
         actions={
-          <button onClick={() => setShowModal(true)} className="btn-primary text-xs">
-            <Plus className="w-3.5 h-3.5" />
-            <span>New Schedule</span>
-          </button>
+          <div className="flex items-center gap-2">
+            {user?.role === 'ADMIN' && (
+              <Link to="/attendance" className="btn-secondary text-xs flex items-center gap-1.5">
+                <Sliders className="w-3.5 h-3.5 text-[#714B67]" />
+                <span>Attendance Policy &amp; Thresholds</span>
+              </Link>
+            )}
+            <button onClick={() => setShowModal(true)} className="btn-primary text-xs">
+              <Plus className="w-3.5 h-3.5" />
+              <span>New Schedule</span>
+            </button>
+          </div>
         }
       />
 
@@ -106,8 +117,8 @@ export default function Schedules() {
                 </div>
               </div>
 
-              <div className="p-4">
-                <table className="w-full text-left text-xs">
+              <div className="p-4 overflow-x-auto">
+                <table className="w-full text-left text-xs min-w-[340px]">
                   <thead>
                     <tr className="border-b border-slate-100 text-slate-400 font-medium">
                       <th className="pb-1.5">Day</th>
@@ -137,8 +148,8 @@ export default function Schedules() {
       {/* CREATE SCHEDULE MODAL */}
       {showModal && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in">
-          <div className="bg-white border border-slate-200 rounded-lg shadow-2xl max-w-xl w-full">
-            <div className="p-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
+          <div className="bg-white border border-slate-200 rounded-lg shadow-2xl max-w-xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-4 border-b border-slate-200 flex items-center justify-between bg-slate-50 sticky top-0 z-10">
               <h3 className="font-bold text-sm text-[#2C3E50]">Configure Working Schedule</h3>
               <button onClick={() => setShowModal(false)} className="text-slate-400 hover:text-slate-600">
                 <X className="w-4 h-4" />
@@ -146,7 +157,7 @@ export default function Schedules() {
             </div>
 
             <form onSubmit={handleCreateSchedule} className="p-6 space-y-4 text-xs">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-slate-700 font-medium mb-1">Schedule Name *</label>
                   <input
