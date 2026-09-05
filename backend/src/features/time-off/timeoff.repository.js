@@ -46,10 +46,13 @@ class TimeOffRepository {
     });
   }
 
-  async getRequests({ employeeId, status }) {
+  async getRequests({ employeeId, status, subordinateIds }) {
     const where = {};
     if (employeeId) where.employeeId = parseInt(employeeId, 10);
     if (status) where.status = status;
+    if (subordinateIds && Array.isArray(subordinateIds)) {
+      where.employeeId = { in: subordinateIds.length > 0 ? subordinateIds : [-1] };
+    }
 
     return prisma.timeOffRequest.findMany({
       where,

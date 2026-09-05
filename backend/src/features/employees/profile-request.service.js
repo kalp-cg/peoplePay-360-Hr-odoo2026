@@ -102,13 +102,21 @@ class ProfileRequestService {
       },
     }));
 
+    let result = formatted;
     if (user.role === 'EMPLOYEE') {
-      return formatted.filter(r => r.employeeId === user.employeeId);
+      result = result.filter(r => r.employeeId === user.employeeId);
+    } else if (user && user.role !== 'ADMIN' && query?.scope !== 'all') {
+      const employeeService = require('./employee.service');
+      const subIds = await employeeService.getSubordinateIdsForUser(user);
+      if (subIds !== null) {
+        result = result.filter(r => subIds.includes(r.employeeId));
+      }
     }
+
     if (query?.status) {
-      return formatted.filter(r => r.status === query.status);
+      result = result.filter(r => r.status === query.status);
     }
-    return formatted;
+    return result;
   }
 
   async approveRequest(id, user) {

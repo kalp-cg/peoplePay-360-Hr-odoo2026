@@ -1,10 +1,13 @@
 const prisma = require('../../config/database');
 
 class AttendanceRepository {
-  async findAll({ employeeId, startDate, endDate, status, search }) {
+  async findAll({ employeeId, startDate, endDate, status, search, subordinateIds }) {
     const where = {};
     if (employeeId) where.employeeId = parseInt(employeeId, 10);
     if (status) where.status = status;
+    if (subordinateIds && Array.isArray(subordinateIds)) {
+      where.employeeId = { in: subordinateIds.length > 0 ? subordinateIds : [-1] };
+    }
     if (startDate || endDate) {
       where.date = {};
       if (startDate) where.date.gte = new Date(startDate);

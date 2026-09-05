@@ -34,7 +34,18 @@ class DashboardService {
     if (departmentId) empWhere.departmentId = parseInt(departmentId, 10);
     if (employeeType && employeeType !== 'ALL') empWhere.employeeType = employeeType;
 
-    const hasEmpFilter = Boolean(departmentId || (employeeType && employeeType !== 'ALL'));
+    // Subordinate scoping for HR roles (HR_MANAGER, HR_PAYROLL_USER)
+    let subordinateIds = null;
+    if (user && user.role !== 'ADMIN' && query.scope !== 'all') {
+      const employeeService = require('../employees/employee.service');
+      subordinateIds = await employeeService.getSubordinateIdsForUser(user);
+    }
+
+    if (subordinateIds !== null) {
+      empWhere.id = { in: subordinateIds.length > 0 ? subordinateIds : [-1] };
+    }
+
+    const hasEmpFilter = Boolean(departmentId || (employeeType && employeeType !== 'ALL') || subordinateIds !== null);
     let employeeIds = [];
     if (hasEmpFilter) {
       const filteredEmployees = await prisma.employee.findMany({

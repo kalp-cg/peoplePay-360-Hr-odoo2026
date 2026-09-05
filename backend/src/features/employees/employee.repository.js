@@ -1,7 +1,7 @@
 const prisma = require('../../config/database');
 
 class EmployeeRepository {
-  async findAll({ search, departmentId, status, employeeType }) {
+  async findAll({ search, departmentId, status, employeeType, managerId, subordinateIds }) {
     const where = {};
     if (search) {
       where.OR = [
@@ -13,6 +13,10 @@ class EmployeeRepository {
     if (departmentId) where.departmentId = parseInt(departmentId, 10);
     if (status) where.status = status;
     if (employeeType) where.employeeType = employeeType;
+    if (managerId) where.managerId = parseInt(managerId, 10);
+    if (subordinateIds && Array.isArray(subordinateIds)) {
+      where.id = { in: subordinateIds.length > 0 ? subordinateIds : [-1] };
+    }
 
     return prisma.employee.findMany({
       where,
