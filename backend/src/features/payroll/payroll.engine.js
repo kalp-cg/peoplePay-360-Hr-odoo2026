@@ -66,11 +66,14 @@ class PayrollEngine {
     // Attendance prorate ratio if unpaid leave was taken
     const effectiveWorkingDays = Math.max(0, totalPeriodDays - unpaidLeaves);
     const attendanceRatio = totalPeriodDays > 0 ? effectiveWorkingDays / totalPeriodDays : 1.0;
+    const effectiveWage = Math.round(wage * attendanceRatio * 100) / 100;
 
     // Initial accumulator context dictionary for rules
     const context = {
-      WAGE: wage,
+      WAGE: effectiveWage,
       BASE_WAGE: wage,
+      CONTRACT_WAGE: wage,
+      EFFECTIVE_WAGE: effectiveWage,
       WORKED_DAYS: workedDays,
       TOTAL_DAYS: totalPeriodDays,
       PAID_LEAVES: paidLeaves,
@@ -90,16 +93,15 @@ class PayrollEngine {
 
       if (rule.calculationType === 'FIXED') {
         amount = this.evaluateExpression(rule.valueExpression, context);
+        // If fixed amount basic and unpaid leave exists, scale proportionally
+        if (rule.code === 'BASIC' && unpaidLeaves > 0) {
+          amount = Math.round(amount * attendanceRatio * 100) / 100;
+        }
       } else if (rule.calculationType === 'PERCENTAGE') {
         // e.g. "0.20 * BASIC" or pure percentage expression
         amount = this.evaluateExpression(rule.valueExpression, context);
       } else if (rule.calculationType === 'FORMULA') {
         amount = this.evaluateExpression(rule.valueExpression, context);
-      }
-
-      // If unpaid leave exists and rule is BASIC, scale proportionally
-      if (rule.code === 'BASIC' && unpaidLeaves > 0) {
-        amount = Math.round(amount * attendanceRatio * 100) / 100;
       }
 
       // Store in context accumulator for subsequent rules

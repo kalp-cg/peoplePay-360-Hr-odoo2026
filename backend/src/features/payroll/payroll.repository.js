@@ -121,11 +121,13 @@ class PayrollRepository {
       // For each explicitly selected employee, create an initial DRAFT payslip record
       let index = 1;
       for (const empId of employeeIds) {
-        // Query applicable contract for period
+        const numericEmpId = parseInt(empId, 10);
+        // Query applicable contract for period (ACTIVE or historically EXPIRED)
         const contract = await tx.contract.findFirst({
           where: {
-            employeeId: parseInt(empId, 10),
+            employeeId: numericEmpId,
             salaryStructureId: structId,
+            status: { in: ['ACTIVE', 'EXPIRED'] },
             startDate: { lte: pEnd },
             OR: [
               { endDate: { gte: pStart } },
@@ -142,9 +144,21 @@ class PayrollRepository {
             data: {
               payslipNumber: payslipNum,
               payrunId: payrun.id,
-              employeeId: parseInt(empId, 10),
+              employeeId: numericEmpId,
               contractId: contract.id,
               status: 'DRAFT',
+            },
+          });
+        } else {
+          // Employee was selected but lacks an applicable contract for this period/structure
+          const emp = await tx.employee.findUnique({ where: { id: numericEmpId } });
+          await tx.payrollWarning.create({
+            data: {
+              payrunId: payrun.id,
+              employeeId: numericEmpId,
+              type: 'MISSING_CONTRACT',
+              severity: 'CRITICAL',
+              message: `Employee ${emp?.name || numericEmpId} (${emp?.employeeId || ''}) has no applicable contract for ${pStart.toISOString().slice(0, 7)}.`,
             },
           });
         }
