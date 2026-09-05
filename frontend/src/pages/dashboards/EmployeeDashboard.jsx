@@ -104,22 +104,46 @@ export default function EmployeeDashboard() {
     }
   }
 
-  async function handleToggleAttendance() {
-    setAttStatus(prev => ({ ...prev, loading: true }));
+  // Live sync with Navbar and Attendance page
+  useEffect(() => {
+    const handleSync = (e) => {
+      if (e.detail?.checkedIn !== undefined) {
+        setAttStatus(prev => ({ ...prev, checkedIn: e.detail.checkedIn }));
+      }
+      fetchEmployeePortalData();
+    };
+    window.addEventListener('attendance-status-changed', handleSync);
+    window.addEventListener('attendance-updated', handleSync);
+    return () => {
+      window.removeEventListener('attendance-status-changed', handleSync);
+      window.removeEventListener('attendance-updated', handleSync);
+    };
+  }, []);
+
+  async function handleAttendanceAction(action) {
+    const nextCheckedIn = action === 'CHECK_IN';
+    setAttStatus(prev => ({ ...prev, checkedIn: nextCheckedIn, loading: true }));
+    window.dispatchEvent(new CustomEvent('attendance-status-changed', {
+      detail: { checkedIn: nextCheckedIn, action }
+    }));
+
     try {
-      await api.post('/attendance/quick-toggle');
+      const res = await api.post('/attendance/quick-toggle', { action });
       await fetchEmployeePortalData();
+      window.dispatchEvent(new CustomEvent('attendance-status-changed', {
+        detail: { checkedIn: res.data?.checkedIn ?? nextCheckedIn, record: res.data }
+      }));
       
-      const wasCheckedIn = attStatus.checkedIn;
       setToast({
         type: 'success',
-        message: !wasCheckedIn 
+        message: action === 'CHECK_IN'
           ? 'Checked in successfully! Shift timer active.' 
-          : 'Checked out successfully! Total worked hours computed and saved.',
+          : 'Checked out of office! Total worked hours computed and saved.',
       });
       setTimeout(() => setToast(null), 4000);
     } catch (err) {
-      setToast({ type: 'error', message: err.message || 'Failed to toggle attendance.' });
+      setToast({ type: 'error', message: err.message || `Failed to ${action === 'CHECK_IN' ? 'check in' : 'check out'}.` });
+      await fetchEmployeePortalData();
     } finally {
       setAttStatus(prev => ({ ...prev, loading: false }));
     }
@@ -303,33 +327,47 @@ export default function EmployeeDashboard() {
               </div>
             </div>
 
-            <div className="pt-3 border-t border-slate-100 mt-3">
+            <div className="pt-3 border-t border-slate-100 mt-3 grid grid-cols-2 gap-2">
+              {/* Option 1: Check In */}
               <button
                 type="button"
-                onClick={handleToggleAttendance}
-                disabled={attStatus.loading}
-                className={`w-full py-2.5 px-3 text-xs font-semibold rounded shadow-xs transition-colors flex items-center justify-center gap-2 ${
+                onClick={() => handleAttendanceAction('CHECK_IN')}
+                disabled={attStatus.loading || attStatus.checkedIn}
+                className={`py-2.5 px-3 text-xs font-semibold rounded shadow-xs transition-all flex items-center justify-center gap-1.5 ${
                   attStatus.checkedIn
-                    ? 'bg-[#714B67] hover:bg-[#5a3b52] text-white'
-                    : 'bg-[#00A09D] hover:bg-[#008b88] text-white'
+                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 cursor-default opacity-90'
+                    : 'bg-[#00A09D] hover:bg-[#008b88] text-white cursor-pointer active:scale-98'
                 }`}
               >
                 {attStatus.loading ? (
-                  <RefreshCw className="w-4 h-4 animate-spin" />
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
                 ) : attStatus.checkedIn ? (
-                  <Square className="w-3.5 h-3.5 fill-current" />
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
                 ) : (
-                  <Play className="w-3.5 h-3.5 fill-current" />
+                  <Play className="w-3 h-3 fill-current" />
                 )}
-                <span>
-                  {attStatus.loading 
-                    ? 'Updating...' 
-                    : attStatus.checkedIn 
-                    ? 'Check Out of Office' 
-                    : (attStatus.hasCheckedOutToday || attStatus.workedHours > 0)
-                    ? 'Check In Again / Resume Shift'
-                    : 'Check In for Today'}
-                </span>
+                <span>{attStatus.checkedIn ? 'Checked In' : 'Check In'}</span>
+              </button>
+
+              {/* Option 2: Check Out */}
+              <button
+                type="button"
+                onClick={() => handleAttendanceAction('CHECK_OUT')}
+                disabled={attStatus.loading || !attStatus.checkedIn}
+                className={`py-2.5 px-3 text-xs font-semibold rounded shadow-xs transition-all flex items-center justify-center gap-1.5 ${
+                  !attStatus.checkedIn
+                    ? 'bg-slate-100 text-slate-400 border border-slate-200 cursor-default'
+                    : 'bg-[#714B67] hover:bg-[#5a3b52] text-white cursor-pointer active:scale-98'
+                }`}
+              >
+                {attStatus.loading ? (
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                ) : !attStatus.checkedIn ? (
+                  <span className="w-2 h-2 rounded-full bg-slate-300" />
+                ) : (
+                  <Square className="w-3 h-3 fill-current" />
+                )}
+                <span>{attStatus.checkedIn ? 'Check Out' : 'Out of Office'}</span>
               </button>
             </div>
           </div>

@@ -40,8 +40,13 @@ class AttendanceController {
 
   async quickToggle(req, res, next) {
     try {
-      const record = await attendanceService.quickToggle(req.user);
-      return sendSuccess(res, record, 200, 'Attendance updated.');
+      const record = await attendanceService.quickToggle(req.user, req.body?.action);
+      const isCheckedIn = Boolean(record.checkIn && !record.checkOut);
+      return sendSuccess(res, {
+        ...record,
+        checkedIn: isCheckedIn,
+        actionTaken: isCheckedIn ? 'CHECKED_IN' : 'CHECKED_OUT',
+      }, 200, isCheckedIn ? 'Checked in successfully.' : 'Checked out of office successfully.');
     } catch (err) {
       next(err);
     }

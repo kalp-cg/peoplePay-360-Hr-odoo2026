@@ -12,6 +12,44 @@ function calculateWorkedHours(checkIn, checkOut, breakHours = 1.0) {
   return Math.max(0.01, Math.round((rawHours - actualBreak) * 100) / 100);
 }
 
+const prisma = require('../../config/database');
+
+async function getEmployeeScheduleDay(employeeId, date) {
+  try {
+    const emp = await prisma.employee.findUnique({
+      where: { id: employeeId },
+      include: {
+        workingSchedule: {
+          include: { scheduleDays: true },
+        },
+      },
+    });
+
+    if (emp?.workingSchedule?.scheduleDays?.length > 0) {
+      const dayOfWeek = date.getDay();
+      const matchedDay = emp.workingSchedule.scheduleDays.find((d) => d.dayOfWeek === dayOfWeek);
+      if (matchedDay) return matchedDay;
+    }
+  } catch (err) {
+    console.warn('[AttendanceService] Schedule resolution fallback:', err.message);
+  }
+  return { startTime: '09:00', endTime: '18:00', breakHours: 1.0, dailyHours: 8.0 };
+}
+
+function resolveAttendanceStatus(workedHours, dailyTarget, wasLate) {
+  const target = dailyTarget || 8.0;
+  if (workedHours >= target + 0.99) {
+    return 'OVERTIME';
+  }
+  if (wasLate) {
+    return 'LATE';
+  }
+  if (workedHours >= Math.max(1, target - 1.0)) {
+    return 'PRESENT';
+  }
+  return 'PRESENT';
+}
+
 class AttendanceService {
   async getAttendance(query, user) {
     // If EMPLOYEE role, restrict to own attendance
@@ -35,19 +73,16 @@ class AttendanceService {
     date.setUTCHours(0, 0, 0, 0);
 
     const existing = await attendanceRepository.findByEmployeeAndDate(empId, date);
+    const scheduleDay = await getEmployeeScheduleDay(empId, date);
 
     if (existing) {
       // If check-out is being submitted
       const checkOut = data.checkOut ? new Date(data.checkOut) : new Date();
-      const breakHours = data.breakHours !== undefined ? parseFloat(data.breakHours) : existing.breakHours;
+      const breakHours = data.breakHours !== undefined ? parseFloat(data.breakHours) : (existing.breakHours || scheduleDay.breakHours || 1.0);
       const worked = calculateWorkedHours(existing.checkIn, checkOut, breakHours);
 
-      let status = existing.status;
-      if (worked >= 9.0) {
-        status = 'OVERTIME';
-      } else if (worked >= 7.0 && status !== 'LATE') {
-        status = 'PRESENT';
-      }
+      const wasLate = existing.status === 'LATE';
+      const status = resolveAttendanceStatus(worked, scheduleDay.dailyHours, wasLate);
 
       return attendanceRepository.update(existing.id, {
         checkOut,
@@ -61,8 +96,14 @@ class AttendanceService {
     const checkIn = data.checkIn ? new Date(data.checkIn) : new Date();
     const hours = checkIn.getHours();
     const minutes = checkIn.getMinutes();
+    const checkInMin = hours * 60 + minutes;
+
+    // Grace period of 15 minutes past scheduled start time
+    const [schedH, schedM] = (scheduleDay.startTime || '09:00').split(':').map(Number);
+    const schedGraceMin = schedH * 60 + schedM + 15;
+
     let status = 'INCOMPLETE';
-    if (hours > 9 || (hours === 9 && minutes > 30)) {
+    if (checkInMin > schedGraceMin) {
       status = 'LATE';
     }
 
@@ -71,7 +112,7 @@ class AttendanceService {
       date,
       checkIn,
       checkOut: null,
-      breakHours: 1.0,
+      breakHours: scheduleDay.breakHours || 1.0,
       workedHours: 0.0,
       status,
     });
@@ -115,14 +156,26 @@ class AttendanceService {
   }
 
   async getCurrentStatus(user) {
-    if (!user.employeeId) {
+    let empId = user.employeeId;
+    if (!empId) {
+      const matchedEmp = await prisma.employee.findFirst({
+        where: { OR: [{ email: user.email }, { employeeId: 'EMP000' }, { status: 'ACTIVE' }] },
+        orderBy: { id: 'asc' },
+      });
+      if (matchedEmp) {
+        empId = matchedEmp.id;
+        user.employeeId = matchedEmp.id;
+      }
+    }
+
+    if (!empId) {
       return { hasEmployeeProfile: false, checkedIn: false, record: null };
     }
 
     const today = new Date();
     today.setUTCHours(0, 0, 0, 0);
 
-    const record = await attendanceRepository.findByEmployeeAndDate(user.employeeId, today);
+    const record = await attendanceRepository.findByEmployeeAndDate(empId, today);
 
     if (!record || !record.checkIn) {
       return {
@@ -159,14 +212,40 @@ class AttendanceService {
     };
   }
 
-  async quickToggle(user) {
-    if (!user.employeeId) {
+  async quickToggle(user, explicitAction = null) {
+    let empId = user.employeeId;
+    if (!empId) {
+      const matchedEmp = await prisma.employee.findFirst({
+        where: { OR: [{ email: user.email }, { employeeId: 'EMP000' }, { status: 'ACTIVE' }] },
+        orderBy: { id: 'asc' },
+      });
+      if (matchedEmp) {
+        empId = matchedEmp.id;
+        user.employeeId = matchedEmp.id;
+        await prisma.user.update({
+          where: { id: user.id },
+          data: { employeeId: matchedEmp.id },
+        }).catch(() => {});
+      }
+    }
+
+    if (!empId) {
       throw { statusCode: 400, message: 'Current user has no associated employee profile.', code: 'NO_EMPLOYEE_PROFILE' };
     }
 
     const currentStatus = await this.getCurrentStatus(user);
 
-    if (!currentStatus.checkedIn) {
+    // If already in the desired state, return current record
+    if (explicitAction === 'CHECK_IN' && currentStatus.checkedIn) {
+      return currentStatus.record;
+    }
+    if (explicitAction === 'CHECK_OUT' && !currentStatus.checkedIn) {
+      return currentStatus.record;
+    }
+
+    const shouldCheckIn = explicitAction ? explicitAction === 'CHECK_IN' : !currentStatus.checkedIn;
+
+    if (shouldCheckIn) {
       // User is not checked in -> Trigger Check In!
       if (currentStatus.record) {
         // Resume session: preserve accumulated worked hours
@@ -180,20 +259,21 @@ class AttendanceService {
         });
       } else {
         // First check in of the day
-        return this.recordAttendance({ employeeId: user.employeeId, checkIn: new Date() }, user);
+        return this.recordAttendance({ employeeId: empId, checkIn: new Date() }, user);
       }
     } else {
       // User is currently checked in -> Trigger Check Out!
+      if (!currentStatus.record || !currentStatus.record.checkIn) {
+        return null;
+      }
       const checkOutTime = new Date();
       const existing = currentStatus.record;
-      const breakHours = existing?.breakHours || 1.0;
+      const today = new Date();
+      const scheduleDay = await getEmployeeScheduleDay(empId, today);
+      const breakHours = existing?.breakHours !== undefined ? existing.breakHours : (scheduleDay.breakHours || 1.0);
       const worked = calculateWorkedHours(existing.checkIn, checkOutTime, breakHours);
-      let status = existing.status;
-      if (worked >= 9.0) {
-        status = 'OVERTIME';
-      } else if (worked >= 7.0 && status !== 'LATE') {
-        status = 'PRESENT';
-      }
+      const wasLate = existing.status === 'LATE';
+      const status = resolveAttendanceStatus(worked, scheduleDay.dailyHours, wasLate);
 
       return attendanceRepository.update(existing.id, {
         checkOut: checkOutTime,

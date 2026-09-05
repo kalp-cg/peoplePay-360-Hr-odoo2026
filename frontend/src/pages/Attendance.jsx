@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { 
   Clock, Plus, Edit2, CheckCircle2, AlertTriangle, X, ShieldAlert, 
   Calendar, Check, RefreshCw, AlertCircle, Copy
@@ -10,8 +11,11 @@ import { formatDateDMY } from '../utils/formatters';
 
 export default function Attendance() {
   const { user } = useAuth();
+  const [searchParams] = useSearchParams();
+  const employeeIdParam = searchParams.get('employeeId');
+
   const isEmployee = user?.role === 'EMPLOYEE';
-  const canCorrect = ['ADMIN', 'HR_MANAGER'].includes(user?.role);
+  const canCorrect = ['ADMIN', 'HR_MANAGER', 'HR_PAYROLL_MANAGER'].includes(user?.role);
 
   const [records, setRecords] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -38,12 +42,30 @@ export default function Attendance() {
     if (isEmployee) {
       fetchCurrentStatus();
     }
-  }, [statusFilter, isEmployee]);
+
+    const handleAttUpdate = (e) => {
+      if (e?.detail?.checkedIn !== undefined) {
+        setAttStatus(prev => ({ ...prev, checkedIn: e.detail.checkedIn }));
+      }
+      fetchAttendance();
+      if (isEmployee) fetchCurrentStatus();
+    };
+    window.addEventListener('attendance-updated', handleAttUpdate);
+    window.addEventListener('attendance-status-changed', handleAttUpdate);
+    return () => {
+      window.removeEventListener('attendance-updated', handleAttUpdate);
+      window.removeEventListener('attendance-status-changed', handleAttUpdate);
+    };
+  }, [statusFilter, isEmployee, employeeIdParam]);
 
   async function fetchAttendance() {
     setLoading(true);
     try {
-      const res = await api.get('/attendance', { params: { status: statusFilter || undefined } });
+      const params = {
+        status: statusFilter || undefined,
+        employeeId: employeeIdParam || undefined,
+      };
+      const res = await api.get('/attendance', { params });
       setRecords(res.data);
     } catch (err) {
       console.error(err);
@@ -70,19 +92,22 @@ export default function Attendance() {
     }
   }
 
-  async function handleToggleAttendance() {
-    setAttStatus((prev) => ({ ...prev, loading: true }));
+  async function handleAttendanceAction(action) {
+    const nextCheckedIn = action === 'CHECK_IN';
+    setAttStatus((prev) => ({ ...prev, checkedIn: nextCheckedIn, loading: true }));
+    window.dispatchEvent(new CustomEvent('attendance-status-changed', {
+      detail: { checkedIn: nextCheckedIn, action }
+    }));
     try {
-      await api.post('/attendance/quick-toggle');
+      const res = await api.post('/attendance/quick-toggle', { action });
+      window.dispatchEvent(new CustomEvent('attendance-status-changed', {
+        detail: { checkedIn: res.data?.checkedIn ?? nextCheckedIn, record: res.data }
+      }));
       await Promise.all([fetchCurrentStatus(), fetchAttendance()]);
     } catch (err) {
       console.error('[Attendance Toggle Error]:', err);
-      setErrorInfo({
-        action: 'Attendance Toggle',
-        message: err.message || 'Failed to toggle attendance status.',
-        user: { name: user?.name, email: user?.email, role: user?.role, employeeId: user?.employeeId },
-        timestamp: new Date().toISOString(),
-      });
+      alert(err.message || `Failed to ${action === 'CHECK_IN' ? 'check in' : 'check out'}.`);
+      await Promise.all([fetchCurrentStatus(), fetchAttendance()]);
     } finally {
       setAttStatus((prev) => ({ ...prev, loading: false }));
     }
@@ -205,26 +230,37 @@ export default function Attendance() {
                 </div>
               </div>
 
-              <button
-                onClick={handleToggleAttendance}
-                disabled={attStatus.loading}
-                className={`px-5 py-2.5 rounded text-xs font-semibold shadow-sm transition-all flex items-center gap-2 ${
-                  attStatus.checkedIn
-                    ? 'bg-[#714B67] hover:bg-[#5d3d54] text-white'
-                    : 'bg-[#00A09D] hover:bg-[#008b88] text-white'
-                }`}
-              >
-                <Clock className="w-4 h-4" />
-                <span>
-                  {attStatus.loading 
-                    ? 'Updating Punch...' 
-                    : attStatus.checkedIn 
-                    ? 'Check Out for Today' 
-                    : (attStatus.hasCheckedOutToday || attStatus.workedHours > 0)
-                    ? 'Check In Again / Resume Shift'
-                    : 'Check In for Today'}
-                </span>
-              </button>
+              <div className="flex items-center gap-2">
+                {/* Option 1: Check In */}
+                <button
+                  type="button"
+                  onClick={() => handleAttendanceAction('CHECK_IN')}
+                  disabled={attStatus.loading || attStatus.checkedIn}
+                  className={`px-4 py-2.5 rounded text-xs font-semibold shadow-xs transition-all flex items-center gap-1.5 ${
+                    attStatus.checkedIn
+                      ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 cursor-default opacity-90'
+                      : 'bg-[#00A09D] hover:bg-[#008b88] text-white cursor-pointer active:scale-98'
+                  }`}
+                >
+                  <span className={`w-2 h-2 rounded-full ${attStatus.checkedIn ? 'bg-emerald-500 animate-pulse' : 'bg-teal-200'}`} />
+                  <span>{attStatus.checkedIn ? 'Checked In' : 'Check In'}</span>
+                </button>
+
+                {/* Option 2: Check Out */}
+                <button
+                  type="button"
+                  onClick={() => handleAttendanceAction('CHECK_OUT')}
+                  disabled={attStatus.loading || !attStatus.checkedIn}
+                  className={`px-4 py-2.5 rounded text-xs font-semibold shadow-xs transition-all flex items-center gap-1.5 ${
+                    !attStatus.checkedIn
+                      ? 'bg-slate-100 text-slate-400 border border-slate-200 cursor-default'
+                      : 'bg-[#714B67] hover:bg-[#5a3b52] text-white cursor-pointer active:scale-98'
+                  }`}
+                >
+                  <span className={`w-2 h-2 rounded-full ${!attStatus.checkedIn ? 'bg-slate-300' : 'bg-rose-400 animate-pulse'}`} />
+                  <span>{attStatus.checkedIn ? 'Check Out' : 'Out of Office'}</span>
+                </button>
+              </div>
             </div>
 
             {/* 3 Personal Metric Cards */}
