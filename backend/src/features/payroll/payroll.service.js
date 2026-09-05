@@ -3,6 +3,9 @@ const payrollEngine = require('./payroll.engine');
 const payrollValidator = require('./payroll.validator');
 const auditService = require('../audit/audit.service');
 const prisma = require('../../config/database');
+const mailer = require('../../utils/mailer');
+const logger = require('../../utils/logger');
+const payslipRepository = require('../payslips/payslip.repository');
 
 class PayrollService {
   async getAllPayruns(query) {
@@ -81,7 +84,7 @@ class PayrollService {
     }
     if (totalWorkingDays === 0) totalWorkingDays = 22; // fallback
 
-    return prisma.$transaction(async (tx) => {
+    const computedResult = await prisma.$transaction(async (tx) => {
       let payrunGross = 0;
       let payrunDeductions = 0;
       let payrunNet = 0;
@@ -122,11 +125,12 @@ class PayrollService {
           }
         }
 
-        // 3. Find contract applicable for period
+        // 3. Find contract applicable for period (ACTIVE or historically EXPIRED)
         const applicableContract = await tx.contract.findFirst({
           where: {
             employeeId: empId,
             salaryStructureId: payrun.salaryStructureId,
+            status: { in: ['ACTIVE', 'EXPIRED'] },
             startDate: { lte: periodEnd },
             OR: [
               { endDate: { gte: periodStart } },
@@ -252,6 +256,27 @@ class PayrollService {
 
       return result;
     }, { maxWait: 20000, timeout: 60000 });
+
+    // Auto-email computed payslips directly to employees if AUTO_EMAIL_ON_COMPUTE is true
+    if (process.env.AUTO_EMAIL_ON_COMPUTE === 'true' && computedResult && computedResult.payslips?.length) {
+      setImmediate(async () => {
+        logger.info(`[Auto-Email] Dispatching ${computedResult.payslips.length} computed payslips...`);
+        for (const slip of computedResult.payslips) {
+          try {
+            const fullSlip = await payslipRepository.findById(slip.id);
+            if (fullSlip && fullSlip.employee?.email) {
+              logger.info(`[Auto-Email] Dispatching computed salary slip to ${fullSlip.employee.email} [${fullSlip.payslipNumber}]`);
+              await mailer.sendPayslipEmail(fullSlip);
+              await payslipRepository.updateSentStatus(slip.id);
+            }
+          } catch (err) {
+            logger.warn(`[Auto-Email] Failed for payslip #${slip.id} (${slip.employee?.email}): ${err.message}`);
+          }
+        }
+      });
+    }
+
+    return computedResult;
   }
 
   /**

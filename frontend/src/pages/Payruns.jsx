@@ -39,6 +39,7 @@ export default function Payruns() {
 
   // Payslip detail modal
   const [viewPayslip, setViewPayslip] = useState(null);
+  const [sendingSlipId, setSendingSlipId] = useState(null);
 
   useEffect(() => {
     fetchPayruns();
@@ -289,7 +290,49 @@ export default function Payruns() {
   }
 
   async function handleDownloadPDF(payslipId, payslipNumber) {
-    window.open(`/api/payslips/${payslipId}/pdf`, '_blank');
+    try {
+      const res = await api.get(`/payslips/${payslipId}/pdf`, { responseType: 'blob' });
+      const blob = new Blob([res.data || res], { type: 'application/pdf' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${payslipNumber || `payslip-${payslipId}`}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (err) {
+      console.error('[PDF Download Error]:', err);
+      const token = localStorage.getItem('token');
+      window.open(`/api/payslips/${payslipId}/pdf?token=${token}`, '_blank');
+    }
+  }
+
+  async function handleSendSinglePayslip(payslipId, empName) {
+    setSendingSlipId(payslipId);
+    try {
+      const res = await api.post(`/payslips/${payslipId}/send`);
+      setFeedbackToast({
+        type: 'success',
+        message: res.data?.message || `✓ Payslip successfully emailed to ${empName || 'employee'}!`,
+      });
+      setTimeout(() => setFeedbackToast(null), 4500);
+      if (selectedPayrun?.id) {
+        handleOpenPayrun(selectedPayrun.id);
+      }
+    } catch (err) {
+      console.error('[Send Single Payslip Error]:', err);
+      setErrorInfo({
+        action: 'Email Single Payslip',
+        payslipId,
+        message: err.message || 'Failed to email payslip',
+        timestamp: new Date().toISOString(),
+        url: window.location.href,
+        stack: err.stack || err.toString(),
+      });
+    } finally {
+      setSendingSlipId(null);
+    }
   }
 
   const canCompute = user?.role === 'ADMIN' || user?.role === 'HR_PAYROLL_MANAGER' || user?.role === 'HR_PAYROLL_USER';
@@ -564,6 +607,15 @@ export default function Payruns() {
                             <FileDown className="w-3.5 h-3.5 text-teal-700" />
                             <span>PDF</span>
                           </button>
+                          <button
+                            onClick={() => handleSendSinglePayslip(p.id, p.employee?.name)}
+                            disabled={sendingSlipId === p.id}
+                            className="btn-outline text-[11px] py-1 px-2 text-[#714B67] hover:border-[#714B67]"
+                            title="Email Payslip directly to employee"
+                          >
+                            <Send className={`w-3.5 h-3.5 text-[#714B67] ${sendingSlipId === p.id ? 'animate-pulse' : ''}`} />
+                            <span>{sendingSlipId === p.id ? 'Sending...' : 'Email'}</span>
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -834,6 +886,16 @@ export default function Payruns() {
 
               <div className="pt-2 flex justify-end gap-2 border-t border-slate-200">
                 <button
+                  type="button"
+                  onClick={() => handleSendSinglePayslip(viewPayslip.id, viewPayslip.employee?.name)}
+                  disabled={sendingSlipId === viewPayslip.id}
+                  className="btn-outline text-xs text-[#714B67] hover:border-[#714B67] flex items-center gap-1.5"
+                >
+                  <Send className={`w-3.5 h-3.5 ${sendingSlipId === viewPayslip.id ? 'animate-pulse' : ''}`} />
+                  <span>{sendingSlipId === viewPayslip.id ? 'Sending Email...' : 'Email to Employee'}</span>
+                </button>
+                <button
+                  type="button"
                   onClick={() => handleDownloadPDF(viewPayslip.id, viewPayslip.payslipNumber)}
                   className="btn-primary text-xs"
                 >
