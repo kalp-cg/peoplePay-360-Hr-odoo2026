@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Plane, Plus, CheckCircle, XCircle, Clock, Check, AlertCircle, X } from 'lucide-react';
 import api from '../api/client';
 import ControlPanel from '../components/ControlPanel';
@@ -7,7 +8,11 @@ import { formatPeriodRange } from '../utils/formatters';
 
 export default function TimeOff() {
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState('requests'); // 'requests' | 'allocations' | 'types'
+  const [searchParams] = useSearchParams();
+  const employeeIdParam = searchParams.get('employeeId');
+  const tabParam = searchParams.get('tab');
+
+  const [activeTab, setActiveTab] = useState(tabParam || 'requests'); // 'requests' | 'allocations' | 'types'
   const [requests, setRequests] = useState([]);
   const [allocations, setAllocations] = useState([]);
   const [types, setTypes] = useState([]);
@@ -26,25 +31,40 @@ export default function TimeOff() {
   // Create Allocation Modal
   const [showAllocModal, setShowAllocModal] = useState(false);
   const [allocForm, setAllocForm] = useState({
-    employeeId: '',
+    employeeId: employeeIdParam || '',
     timeOffTypeId: '',
     allocatedDays: 20,
     year: 2026,
   });
+
+  // Create Type Modal
+  const [showTypeModal, setShowTypeModal] = useState(false);
+  const [typeForm, setTypeForm] = useState({
+    name: '',
+    unit: 'DAYS',
+    allocationRequired: true,
+    approvalRequired: true,
+    payrollIntegration: true,
+    isPaid: true,
+  });
+
   const [employees, setEmployees] = useState([]);
 
   useEffect(() => {
     fetchData();
-  }, [activeTab]);
+  }, [activeTab, employeeIdParam]);
 
   async function fetchData() {
     setLoading(true);
     try {
+      const params = {};
+      if (employeeIdParam) params.employeeId = employeeIdParam;
+
       if (activeTab === 'requests') {
-        const res = await api.get('/time-off/requests');
+        const res = await api.get('/time-off/requests', { params });
         setRequests(res.data);
       } else if (activeTab === 'allocations') {
-        const res = await api.get('/time-off/allocations');
+        const res = await api.get('/time-off/allocations', { params });
         setAllocations(res.data);
       } else if (activeTab === 'types') {
         const res = await api.get('/time-off/types');
@@ -70,16 +90,9 @@ export default function TimeOff() {
     try {
       await api.post('/time-off/requests', reqForm);
       setShowRequestModal(false);
-      setReqForm({
-        timeOffTypeId: types[0]?.id || '',
-        startDate: new Date().toISOString().slice(0, 10),
-        endDate: new Date().toISOString().slice(0, 10),
-        durationDays: 1.0,
-        reason: '',
-      });
       fetchData();
     } catch (err) {
-      alert(err.message || 'Failed to submit request');
+      alert(err.message || 'Failed to submit leave request');
     }
   }
 
@@ -93,13 +106,13 @@ export default function TimeOff() {
   }
 
   async function handleReject(id) {
-    const reason = prompt('Please enter a rejection reason:');
-    if (!reason) return;
+    const reason = prompt('Please enter the reason for refusing this leave request:');
+    if (reason === null) return;
     try {
       await api.patch(`/time-off/requests/${id}/reject`, { rejectionReason: reason });
       fetchData();
     } catch (err) {
-      alert(err.message || 'Rejection failed');
+      alert(err.message || 'Refusal failed');
     }
   }
 
@@ -110,12 +123,31 @@ export default function TimeOff() {
       setShowAllocModal(false);
       fetchData();
     } catch (err) {
-      alert(err.message || 'Failed to allocate leave');
+      alert(err.message || 'Failed to create allocation');
     }
   }
 
-  const isHR = user?.role === 'ADMIN' || user?.role === 'HR_MANAGER';
+  async function handleCreateType(e) {
+    e.preventDefault();
+    try {
+      await api.post('/time-off/types', typeForm);
+      setShowTypeModal(false);
+      setTypeForm({
+        name: '',
+        unit: 'DAYS',
+        allocationRequired: true,
+        approvalRequired: true,
+        payrollIntegration: true,
+        isPaid: true,
+      });
+      fetchData();
+    } catch (err) {
+      alert(err.message || 'Failed to create time off type');
+    }
+  }
+
   const isEmployee = user?.role === 'EMPLOYEE';
+  const isHR = user?.role === 'ADMIN' || user?.role === 'HR_MANAGER' || user?.role === 'HR_PAYROLL_MANAGER';
 
   return (
     <div className="min-h-screen bg-[#F8F9FA] pb-12">
@@ -127,7 +159,7 @@ export default function TimeOff() {
           <div className="flex items-center gap-2">
             <button
               onClick={() => setShowRequestModal(true)}
-              className="btn-primary text-xs"
+              className="btn-primary text-xs flex items-center gap-1"
             >
               <Plus className="w-3.5 h-3.5" />
               <span>Submit Leave Request</span>
@@ -135,10 +167,19 @@ export default function TimeOff() {
             {isHR && activeTab === 'allocations' && (
               <button
                 onClick={() => setShowAllocModal(true)}
-                className="btn-secondary text-xs"
+                className="btn-secondary text-xs flex items-center gap-1"
               >
                 <Plus className="w-3.5 h-3.5" />
                 <span>New Allocation</span>
+              </button>
+            )}
+            {isHR && activeTab === 'types' && (
+              <button
+                onClick={() => setShowTypeModal(true)}
+                className="btn-secondary text-xs flex items-center gap-1"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>New Leave Type</span>
               </button>
             )}
           </div>
@@ -495,6 +536,90 @@ export default function TimeOff() {
                 </button>
                 <button type="submit" className="btn-secondary text-xs">
                   Assign Allocation
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Configure Leave Type Modal */}
+      {showTypeModal && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in">
+          <div className="bg-white border border-slate-200 rounded-lg shadow-2xl max-w-md w-full">
+            <div className="p-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
+              <h3 className="font-bold text-sm text-[#2C3E50]">Configure Leave Type</h3>
+              <button onClick={() => setShowTypeModal(false)} className="text-slate-400 hover:text-slate-600">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateType} className="p-6 space-y-4 text-xs">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-slate-700 font-medium mb-1">Name *</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Annual Leave"
+                    value={typeForm.name}
+                    onChange={(e) => setTypeForm({ ...typeForm, name: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded px-3 py-1.5 text-xs focus:bg-white focus:outline-none focus:ring-1 focus:ring-[#714B67]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-700 font-medium mb-1">Code *</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. AL"
+                    value={typeForm.code}
+                    onChange={(e) => setTypeForm({ ...typeForm, code: e.target.value.toUpperCase() })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded px-3 py-1.5 text-xs uppercase focus:bg-white focus:outline-none focus:ring-1 focus:ring-[#714B67]"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-slate-700 font-medium mb-1">Classification *</label>
+                  <select
+                    value={typeForm.type}
+                    onChange={(e) => setTypeForm({ ...typeForm, type: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded px-3 py-1.5 text-xs focus:bg-white focus:outline-none focus:ring-1 focus:ring-[#714B67]"
+                  >
+                    <option value="PAID">Paid Leave</option>
+                    <option value="UNPAID">Unpaid Leave</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-slate-700 font-medium mb-1">Default Days/Year</label>
+                  <input
+                    type="number"
+                    value={typeForm.defaultDays}
+                    onChange={(e) => setTypeForm({ ...typeForm, defaultDays: Number(e.target.value) })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded px-3 py-1.5 text-xs focus:bg-white focus:outline-none focus:ring-1 focus:ring-[#714B67]"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="reqAppr"
+                  checked={typeForm.requiresApproval}
+                  onChange={(e) => setTypeForm({ ...typeForm, requiresApproval: e.target.checked })}
+                  className="rounded text-[#714B67] focus:ring-[#714B67]"
+                />
+                <label htmlFor="reqAppr" className="text-slate-700 font-medium">Requires Manager Approval</label>
+              </div>
+
+              <div className="pt-4 flex items-center justify-end gap-2 border-t border-slate-200">
+                <button type="button" onClick={() => setShowTypeModal(false)} className="btn-outline text-xs">
+                  Discard
+                </button>
+                <button type="submit" className="btn-primary text-xs">
+                  Create Leave Type
                 </button>
               </div>
             </form>

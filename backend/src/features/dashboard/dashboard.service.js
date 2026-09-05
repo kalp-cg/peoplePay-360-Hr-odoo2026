@@ -16,38 +16,66 @@ class DashboardService {
       return cached.data;
     }
 
-    // 1. Build employee filter
+    // 1. Resolve period into effective dates if period is provided
+    let effStartDate = startDate ? new Date(startDate) : null;
+    let effEndDate = endDate ? new Date(endDate) : null;
+    if (period && !startDate && !endDate) {
+      const [yearStr, monthStr] = period.split('-');
+      const y = parseInt(yearStr, 10);
+      const m = parseInt(monthStr, 10);
+      if (!isNaN(y) && !isNaN(m)) {
+        effStartDate = new Date(Date.UTC(y, m - 1, 1));
+        effEndDate = new Date(Date.UTC(y, m, 0, 23, 59, 59, 999));
+      }
+    }
+
+    // 2. Build employee filter
     const empWhere = {};
     if (departmentId) empWhere.departmentId = parseInt(departmentId, 10);
-    if (employeeType) empWhere.employeeType = employeeType;
+    if (employeeType && employeeType !== 'ALL') empWhere.employeeType = employeeType;
 
-    const filteredEmployees = await prisma.employee.findMany({
-      where: empWhere,
-      select: { id: true, departmentId: true },
-    });
-    const employeeIds = filteredEmployees.map((e) => e.id);
+    const hasEmpFilter = Boolean(departmentId || (employeeType && employeeType !== 'ALL'));
+    let employeeIds = [];
+    if (hasEmpFilter) {
+      const filteredEmployees = await prisma.employee.findMany({
+        where: empWhere,
+        select: { id: true, departmentId: true },
+      });
+      employeeIds = filteredEmployees.map((e) => e.id);
+    }
 
-    // 2. Build Query Where clauses
+    // 3. Build Query Where clauses
     const payslipWhere = { status: 'PAID' };
-    if (employeeIds.length > 0) payslipWhere.employeeId = { in: employeeIds };
-    if (startDate || endDate) {
+    if (hasEmpFilter) {
+      payslipWhere.employeeId = { in: employeeIds.length > 0 ? employeeIds : [-1] };
+    }
+    if (effStartDate || effEndDate) {
       payslipWhere.payrun = { periodStart: {} };
-      if (startDate) payslipWhere.payrun.periodStart.gte = new Date(startDate);
-      if (endDate) payslipWhere.payrun.periodStart.lte = new Date(endDate);
+      if (effStartDate) payslipWhere.payrun.periodStart.gte = effStartDate;
+      if (effEndDate) payslipWhere.payrun.periodStart.lte = effEndDate;
     }
 
     const timeOffWhere = {};
-    if (employeeIds.length > 0) timeOffWhere.employeeId = { in: employeeIds };
-
-    const attWhere = {};
-    if (employeeIds.length > 0) attWhere.employeeId = { in: employeeIds };
-    if (startDate || endDate) {
-      attWhere.date = {};
-      if (startDate) attWhere.date.gte = new Date(startDate);
-      if (endDate) attWhere.date.lte = new Date(endDate);
+    if (hasEmpFilter) {
+      timeOffWhere.employeeId = { in: employeeIds.length > 0 ? employeeIds : [-1] };
     }
 
-    // 3. Parallel DB roundtrip execution via Promise.all
+    const attWhere = {};
+    if (hasEmpFilter) {
+      attWhere.employeeId = { in: employeeIds.length > 0 ? employeeIds : [-1] };
+    }
+    if (effStartDate || effEndDate) {
+      attWhere.date = {};
+      if (effStartDate) attWhere.date.gte = effStartDate;
+      if (effEndDate) attWhere.date.lte = effEndDate;
+    }
+
+    const allocWhere = {};
+    if (hasEmpFilter) {
+      allocWhere.employeeId = { in: employeeIds.length > 0 ? employeeIds : [-1] };
+    }
+
+    // 4. Parallel DB roundtrip execution via Promise.all
     const [
       paidPayslips,
       approvedLeaves,
@@ -55,7 +83,10 @@ class DashboardService {
       allocations,
       attendances,
       departments,
-      payruns
+      payruns,
+      payrollWarnings,
+      missingBankEmps,
+      expiringContractsList
     ] = await Promise.all([
       prisma.payslip.findMany({
         where: payslipWhere,
@@ -71,7 +102,7 @@ class DashboardService {
         where: { ...timeOffWhere, status: 'PENDING' },
       }),
       prisma.timeOffAllocation.aggregate({
-        where: employeeIds.length > 0 ? { employeeId: { in: employeeIds } } : {},
+        where: allocWhere,
         _sum: { allocatedDays: true, takenDays: true, remainingDays: true },
       }),
       prisma.attendance.findMany({
@@ -92,6 +123,36 @@ class DashboardService {
         where: { status: 'PAID' },
         orderBy: { periodStart: 'asc' },
         take: 12,
+      }),
+      prisma.payrollWarning.findMany({
+        where: { isResolved: false },
+        include: { employee: true, payrun: true },
+        take: 6,
+        orderBy: { createdAt: 'desc' },
+      }),
+      prisma.employee.findMany({
+        where: {
+          status: 'ACTIVE',
+          OR: [
+            { bankAccountNumber: null },
+            { bankAccountNumber: '' },
+            { bankIfscCode: null },
+            { bankIfscCode: '' },
+          ],
+        },
+        select: { id: true, employeeId: true, name: true, department: { select: { name: true } } },
+        take: 6,
+      }),
+      prisma.contract.findMany({
+        where: {
+          status: 'ACTIVE',
+          endDate: {
+            not: null,
+            lte: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000), // Next 60 days
+          },
+        },
+        include: { employee: { select: { id: true, employeeId: true, name: true, department: { select: { name: true } } } } },
+        take: 6,
       }),
     ]);
 
@@ -171,6 +232,38 @@ class DashboardService {
           approvedRequests: approvedLeaves.length,
           pendingRequests: pendingLeaves.length,
         },
+      },
+      attendanceOverview: {
+        present: attCounts.present,
+        late: attCounts.late,
+        absent: attCounts.absent,
+        overtime: attCounts.overtime,
+        missingCheckOuts: attCounts.incomplete,
+        manualEdits: attCounts.corrected,
+        totalRecords: totalAtt,
+        attendanceCoveragePercent: attendanceHealthPercent,
+      },
+      alerts: {
+        activePayrollWarnings: payrollWarnings.map((w) => ({
+          id: w.id,
+          type: w.type,
+          severity: w.severity,
+          message: w.message,
+          employeeName: w.employee?.name || null,
+          payrunName: w.payrun?.name || null,
+        })),
+        missingBankDetails: missingBankEmps.map((e) => ({
+          id: e.id,
+          employeeId: e.employeeId,
+          name: e.name,
+          department: e.department?.name || 'General',
+        })),
+        expiringContracts: expiringContractsList.map((c) => ({
+          id: c.id,
+          employeeName: c.employee?.name,
+          employeeId: c.employee?.employeeId,
+          endDate: c.endDate,
+        })),
       },
     };
 

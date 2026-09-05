@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { FileText, Plus, CheckCircle, Clock, Calendar, AlertCircle, X, ArrowRight, User, DollarSign, Shield, Info, Layers } from 'lucide-react';
 import api from '../api/client';
 import ControlPanel from '../components/ControlPanel';
@@ -10,8 +10,10 @@ export default function Contracts() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const { id: routeContractId } = useParams();
+  const [searchParams] = useSearchParams();
+  const employeeIdParam = searchParams.get('employeeId');
 
-  const canCreateContract = ['ADMIN', 'HR_MANAGER'].includes(user?.role);
+  const canCreateContract = ['ADMIN', 'HR_MANAGER', 'HR_PAYROLL_MANAGER'].includes(user?.role);
 
   const [contracts, setContracts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -24,7 +26,7 @@ export default function Contracts() {
   // Create Modal
   const [showModal, setShowModal] = useState(false);
   const [formData, setFormData] = useState({
-    employeeId: '',
+    employeeId: employeeIdParam || '',
     startDate: new Date().toISOString().slice(0, 10),
     endDate: '',
     wage: '',
@@ -35,23 +37,14 @@ export default function Contracts() {
   useEffect(() => {
     fetchContracts();
     fetchMetadata();
-  }, []);
-
-  useEffect(() => {
-    if (routeContractId && contracts.length > 0) {
-      const matched = contracts.find(c => String(c.id) === String(routeContractId));
-      if (matched) {
-        setSelectedContract(matched);
-      }
-    } else if (!routeContractId) {
-      setSelectedContract(null);
-    }
-  }, [routeContractId, contracts]);
+  }, [employeeIdParam]);
 
   async function fetchContracts() {
     setLoading(true);
     try {
-      const res = await api.get('/contracts');
+      const params = {};
+      if (employeeIdParam) params.employeeId = employeeIdParam;
+      const res = await api.get('/contracts', { params });
       setContracts(res.data);
       if (routeContractId) {
         const matched = res.data.find(c => String(c.id) === String(routeContractId));

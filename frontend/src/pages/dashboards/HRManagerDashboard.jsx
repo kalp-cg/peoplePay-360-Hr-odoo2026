@@ -47,12 +47,14 @@ export default function HRManagerDashboard() {
   // Handle Leave Approvals
   async function handleApproveLeave(id) {
     setActionLoading(true);
+    setPendingLeaves(prev => prev.filter(l => l.id !== id));
     try {
       await api.patch(`/time-off/requests/${id}/approve`);
       setStatusMessage({ type: 'success', text: 'Leave request approved successfully.' });
       await fetchHRDashboard();
     } catch (err) {
       setStatusMessage({ type: 'error', text: err.message || 'Failed to approve leave' });
+      await fetchHRDashboard();
     } finally {
       setActionLoading(false);
     }
@@ -61,12 +63,14 @@ export default function HRManagerDashboard() {
   // Handle Profile Requests Approval
   async function handleApproveProfileRequest(id) {
     setActionLoading(true);
+    setProfileRequests(prev => prev.filter(r => r.id !== id));
     try {
       await api.patch(`/employees/profile-change-requests/${id}/approve`);
       setStatusMessage({ type: 'success', text: 'Profile changes approved and applied directly to employee record!' });
       await fetchHRDashboard();
     } catch (err) {
       setStatusMessage({ type: 'error', text: err.message || 'Failed to approve profile request' });
+      await fetchHRDashboard();
     } finally {
       setActionLoading(false);
     }
@@ -83,19 +87,27 @@ export default function HRManagerDashboard() {
       alert('Please provide a rejection reason.');
       return;
     }
+    const { type, id, reason } = rejectModal;
     setActionLoading(true);
+    if (type === 'leave') {
+      setPendingLeaves(prev => prev.filter(l => l.id !== id));
+    } else if (type === 'profile') {
+      setProfileRequests(prev => prev.filter(r => r.id !== id));
+    }
+    setRejectModal({ open: false, type: '', id: null, reason: '' });
+
     try {
-      if (rejectModal.type === 'leave') {
-        await api.patch(`/time-off/requests/${rejectModal.id}/reject`, { rejectionReason: rejectModal.reason });
+      if (type === 'leave') {
+        await api.patch(`/time-off/requests/${id}/reject`, { rejectionReason: reason });
         setStatusMessage({ type: 'success', text: 'Leave request rejected.' });
-      } else if (rejectModal.type === 'profile') {
-        await api.patch(`/employees/profile-change-requests/${rejectModal.id}/reject`, { reviewerNotes: rejectModal.reason });
+      } else if (type === 'profile') {
+        await api.patch(`/employees/profile-change-requests/${id}/reject`, { reviewerNotes: reason });
         setStatusMessage({ type: 'success', text: 'Profile change request rejected.' });
       }
-      setRejectModal({ open: false, type: '', id: null, reason: '' });
       await fetchHRDashboard();
     } catch (err) {
       setStatusMessage({ type: 'error', text: err.message || 'Failed to reject request' });
+      await fetchHRDashboard();
     } finally {
       setActionLoading(false);
     }
@@ -413,11 +425,13 @@ export default function HRManagerDashboard() {
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie
-                    data={[
-                      { name: 'Present On-Time', value: 85 },
-                      { name: 'Late Check-in', value: 8 },
-                      { name: 'Approved Time Off', value: 7 },
-                    ]}
+                    data={
+                      charts.attendanceDistribution?.length > 0 && charts.attendanceDistribution.some(d => d.count > 0)
+                        ? charts.attendanceDistribution.map(d => ({ name: d.name, value: d.count, fill: d.fill }))
+                        : [
+                            { name: 'Present', value: 1, fill: '#00A09D' },
+                          ]
+                    }
                     cx="50%"
                     cy="50%"
                     innerRadius={60}
@@ -425,11 +439,11 @@ export default function HRManagerDashboard() {
                     paddingAngle={3}
                     dataKey="value"
                   >
-                    <Cell fill="#00A09D" />
-                    <Cell fill="#714B67" />
-                    <Cell fill="#E2E8F0" />
+                    {(charts.attendanceDistribution || []).map((entry, idx) => (
+                      <Cell key={`cell-${idx}`} fill={entry.fill || '#714B67'} />
+                    ))}
                   </Pie>
-                  <Tooltip />
+                  <Tooltip formatter={(value, name) => [value, name]} />
                 </PieChart>
               </ResponsiveContainer>
             </div>
