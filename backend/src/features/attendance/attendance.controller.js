@@ -1,0 +1,51 @@
+const attendanceService = require('./attendance.service');
+const { sendSuccess, sendError } = require('../../utils/response');
+
+class AttendanceController {
+  async getAll(req, res, next) {
+    try {
+      const records = await attendanceService.getAttendance(req.query, req.user);
+      return sendSuccess(res, records);
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  async record(req, res, next) {
+    try {
+      const record = await attendanceService.recordAttendance(req.body, req.user);
+      return sendSuccess(res, record, 201, 'Attendance recorded.');
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  async correct(req, res, next) {
+    try {
+      const updated = await attendanceService.correctAttendance(req.params.id, req.body, req.user);
+      return sendSuccess(res, updated, 200, 'Attendance corrected successfully.');
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  async getCurrentStatus(req, res, next) {
+    try {
+      const status = await attendanceService.getCurrentStatus(req.user);
+      return sendSuccess(res, status);
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  async quickToggle(req, res, next) {
+    try {
+      const record = await attendanceService.quickToggle(req.user);
+      return sendSuccess(res, record, 200, 'Attendance updated.');
+    } catch (err) {
+      next(err);
+    }
+  }
+}
+
+module.exports = new AttendanceController();
