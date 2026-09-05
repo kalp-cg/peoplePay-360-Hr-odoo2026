@@ -116,6 +116,26 @@ export default function Employees() {
     }
   }
 
+  async function fetchMetadata() {
+    try {
+      const [deptRes, schedRes, structRes] = await Promise.all([
+        api.get('/departments'),
+        api.get('/schedules'),
+        api.get('/salary/structures'),
+      ]);
+      setDepartments(deptRes.data);
+      setSchedules(schedRes.data);
+      setStructures(structRes.data);
+
+      if (structRes.data.length > 0) {
+        setFormData(prev => ({ ...prev, salaryStructureId: String(structRes.data[0].id) }));
+        setContractFormData(prev => ({ ...prev, salaryStructureId: String(structRes.data[0].id) }));
+      }
+    } catch (err) {
+      console.error('Failed to fetch metadata:', err);
+    }
+  }
+
   async function fetchEmployeeDetail(id) {
     setLoadingDetails(true);
     try {
