@@ -3,8 +3,16 @@ const auditService = require('../audit/audit.service');
 const prisma = require('../../config/database');
 
 class ContractService {
-  async getAllContracts(query) {
-    return contractRepository.findAll(query);
+  async getAllContracts(query, user) {
+    const q = { ...query };
+    if (user && !['ADMIN', 'HR_PAYROLL_MANAGER', 'HR_PAYROLL_USER'].includes(user.role) && q.scope !== 'all') {
+      const employeeService = require('../employees/employee.service');
+      const subIds = await employeeService.getSubordinateIdsForUser(user);
+      if (subIds !== null) {
+        q.subordinateIds = subIds;
+      }
+    }
+    return contractRepository.findAll(q);
   }
 
   async getContractById(id) {

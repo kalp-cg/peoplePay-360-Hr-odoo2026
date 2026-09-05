@@ -12,10 +12,17 @@ class TimeOffService {
   }
 
   async getAllocations(query, user) {
+    const q = { ...query };
     if (user.role === 'EMPLOYEE' && user.employeeId) {
-      query.employeeId = user.employeeId;
+      q.employeeId = user.employeeId;
+    } else if (user && user.role === 'HR_MANAGER' && q.scope !== 'all') {
+      const employeeService = require('../employees/employee.service');
+      const subIds = await employeeService.getSubordinateIdsForUser(user);
+      if (subIds !== null) {
+        q.subordinateIds = subIds;
+      }
     }
-    return timeOffRepository.getAllocations(query);
+    return timeOffRepository.getAllocations(q);
   }
 
   async createAllocation(data, user) {
@@ -32,10 +39,17 @@ class TimeOffService {
   }
 
   async getRequests(query, user) {
+    const q = { ...query };
     if (user.role === 'EMPLOYEE' && user.employeeId) {
-      query.employeeId = user.employeeId;
+      q.employeeId = user.employeeId;
+    } else if (user && user.role === 'HR_MANAGER' && q.scope !== 'all') {
+      const employeeService = require('../employees/employee.service');
+      const subIds = await employeeService.getSubordinateIdsForUser(user);
+      if (subIds !== null) {
+        q.subordinateIds = subIds;
+      }
     }
-    return timeOffRepository.getRequests(query);
+    return timeOffRepository.getRequests(q);
   }
 
   async submitRequest(data, user) {

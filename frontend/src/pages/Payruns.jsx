@@ -52,6 +52,24 @@ export default function Payruns() {
   const [viewPayslip, setViewPayslip] = useState(null);
   const [sendingSlipId, setSendingSlipId] = useState(null);
 
+  const getStatusBadge = (status) => {
+    switch (status) {
+      case 'PAID':
+        return 'bg-emerald-50 text-emerald-700 border-emerald-300';
+      case 'VALIDATED':
+        return 'bg-teal-50 text-[#00A09D] border-[#00A09D]/30';
+      case 'COMPUTED':
+        return 'bg-purple-50 text-[#714B67] border-[#714B67]/30';
+      case 'WARNING':
+        return 'bg-amber-50 text-amber-700 border-amber-300';
+      case 'CANCELLED':
+        return 'bg-rose-50 text-rose-700 border-rose-300';
+      case 'DRAFT':
+      default:
+        return 'bg-slate-100 text-slate-700 border-slate-300';
+    }
+  };
+
   useEffect(() => {
     fetchPayruns();
     fetchStructures();
@@ -70,10 +88,8 @@ export default function Payruns() {
     setLoading(true);
     try {
       const res = await api.get('/payruns');
-      setPayruns(res.data);
-      if (routePayrunId) {
-        loadPayrunDetail(routePayrunId);
-      }
+      const data = res?.data || res;
+      setPayruns(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error(err);
     } finally {
@@ -84,9 +100,12 @@ export default function Payruns() {
   async function loadPayrunDetail(id) {
     try {
       const res = await api.get(`/payruns/${id}`);
-      setSelectedPayrun(res.data);
+      const data = res?.data || res;
+      if (data && data.id) {
+        setSelectedPayrun(data);
+      }
     } catch (err) {
-      console.error(err);
+      console.error('[Load Payrun Error]:', err);
     }
   }
 
@@ -127,8 +146,11 @@ export default function Payruns() {
     }
   }
 
-  function handleOpenPayrun(id) {
-    navigate(`/payroll/payruns/${id}`);
+  function handleOpenPayrun(target) {
+    const payrunId = typeof target === 'object' && target !== null ? target.id : target;
+    if (payrunId) {
+      navigate(`/payroll/${payrunId}`);
+    }
   }
 
   function handleBackToPayruns() {
@@ -190,35 +212,48 @@ export default function Payruns() {
   async function handleCompute() {
     if (!selectedPayrun) return;
     setProcessingAction('computing');
-    console.log('[Payroll Engine] Initiating salary computation for payrun:', {
-      id: selectedPayrun.id,
-      name: selectedPayrun.name,
-      status: selectedPayrun.status,
-      operator: user?.name,
-      role: user?.role
-    });
-
     try {
       const res = await api.post(`/payruns/${selectedPayrun.id}/compute`);
-      console.log('[Payroll Engine] Computation successful:', res);
       const computedPayrun = res?.data || res;
       setSelectedPayrun(computedPayrun);
       await fetchPayruns();
       setFeedbackToast({
         type: 'success',
-        message: `✓ Computed ${computedPayrun.payslips?.length || 0} payslips! Total Gross: ₹${(computedPayrun.totalGross || 0).toLocaleString()} • Net Disbursed: ₹${(computedPayrun.totalNet || 0).toLocaleString()}`,
+        message: `✓ Computed ${computedPayrun.payslips?.length || 0} payslips! Gross: ₹${(computedPayrun.totalGross || 0).toLocaleString()} · Net: ₹${(computedPayrun.totalNet || 0).toLocaleString()}. Now review and submit for manager approval.`,
       });
-      setTimeout(() => setFeedbackToast(null), 4500);
+      setTimeout(() => setFeedbackToast(null), 6000);
     } catch (err) {
-      console.error('[Payroll Engine Compute Error]:', err);
       setErrorInfo({
-        action: 'Payrun Computation',
-        payrun: { id: selectedPayrun.id, name: selectedPayrun.name, status: selectedPayrun.status },
-        user: { name: user?.name, role: user?.role },
-        message: err.message || 'Compute failed',
-        timestamp: new Date().toISOString(),
-        url: window.location.href,
-        stack: err.stack || err.toString(),
+        action: 'Payrun Computation', payrun: { id: selectedPayrun.id, name: selectedPayrun.name, status: selectedPayrun.status },
+        user: { name: user?.name, role: user?.role }, message: err.message || 'Compute failed',
+        timestamp: new Date().toISOString(), url: window.location.href, stack: err.stack || err.toString(),
+      });
+    } finally {
+      setProcessingAction(null);
+    }
+  }
+
+  async function handleSubmitForReview() {
+    if (!selectedPayrun) return;
+    if (!window.confirm(
+      `Submit "${selectedPayrun.name}" for manager validation?\n\nThis confirms the payroll is computed correctly and ready for ${user?.role === 'HR_PAYROLL_USER' ? 'the Payroll Manager' : 'management'} review.`
+    )) return;
+    setProcessingAction('submitting');
+    try {
+      const res = await api.post(`/payruns/${selectedPayrun.id}/submit`);
+      const submitted = res?.data || res;
+      setSelectedPayrun(submitted);
+      await fetchPayruns();
+      setFeedbackToast({
+        type: 'success',
+        message: `✓ Payrun submitted for manager review! The Payroll Manager will now validate and approve disbursement.`,
+      });
+      setTimeout(() => setFeedbackToast(null), 5000);
+    } catch (err) {
+      setErrorInfo({
+        action: 'Submit for Review', payrun: { id: selectedPayrun.id, name: selectedPayrun.name, status: selectedPayrun.status },
+        user: { name: user?.name, role: user?.role }, message: err.message || 'Submit failed',
+        timestamp: new Date().toISOString(), url: window.location.href, stack: err.stack || err.toString(),
       });
     } finally {
       setProcessingAction(null);
@@ -228,24 +263,25 @@ export default function Payruns() {
   async function handleValidate() {
     if (!selectedPayrun) return;
     setProcessingAction('validating');
-    console.log('[Payroll Engine] Validating payrun integrity:', {
-      id: selectedPayrun.id,
-      name: selectedPayrun.name,
-    });
+
+    // Instant optimistic UI update
+    setSelectedPayrun((prev) => (prev ? { ...prev, status: 'VALIDATED' } : prev));
 
     try {
       const res = await api.post(`/payruns/${selectedPayrun.id}/validate`);
-      console.log('[Payroll Engine] Validation successful:', res);
       const validatedPayrun = res?.data || res;
-      setSelectedPayrun(validatedPayrun);
-      await fetchPayruns();
+      if (validatedPayrun && validatedPayrun.id) {
+        setSelectedPayrun(validatedPayrun);
+      }
+      fetchPayruns();
       setFeedbackToast({
         type: 'success',
         message: `✓ Payrun successfully validated! Status moved to VALIDATED. Ready for disbursement.`,
       });
-      setTimeout(() => setFeedbackToast(null), 4500);
+      setTimeout(() => setFeedbackToast(null), 4000);
     } catch (err) {
       console.error('[Payroll Engine Validation Error]:', err);
+      loadPayrunDetail(selectedPayrun.id);
       setErrorInfo({
         action: 'Payrun Validation',
         payrun: { id: selectedPayrun.id, name: selectedPayrun.name, status: selectedPayrun.status },
@@ -262,23 +298,34 @@ export default function Payruns() {
 
   async function handleMarkPaid() {
     if (!selectedPayrun) return;
-    if (!confirm('Are you sure you want to mark this payrun as PAID? This will commit the payout and lock records.')) return;
     setProcessingAction('marking_paid');
-    console.log('[Payroll Engine] Marking payrun as PAID & locking records:', selectedPayrun.id);
+
+    // Instant optimistic UI transition to PAID
+    setSelectedPayrun((prev) =>
+      prev
+        ? {
+            ...prev,
+            status: 'PAID',
+            payslips: prev.payslips?.map((p) => ({ ...p, status: 'PAID' })),
+          }
+        : prev
+    );
 
     try {
       const res = await api.post(`/payruns/${selectedPayrun.id}/mark-paid`);
-      console.log('[Payroll Engine] Mark Paid successful:', res);
       const paidPayrun = res?.data || res;
-      setSelectedPayrun(paidPayrun);
-      await fetchPayruns();
+      if (paidPayrun && paidPayrun.id) {
+        setSelectedPayrun(paidPayrun);
+      }
+      fetchPayruns();
       setFeedbackToast({
         type: 'success',
         message: `✓ Payrun marked as PAID! All payslips are finalized and locked.`,
       });
-      setTimeout(() => setFeedbackToast(null), 4500);
+      setTimeout(() => setFeedbackToast(null), 4000);
     } catch (err) {
       console.error('[Payroll Engine Mark Paid Error]:', err);
+      loadPayrunDetail(selectedPayrun.id);
       setErrorInfo({
         action: 'Payrun Mark Paid',
         payrun: { id: selectedPayrun.id, name: selectedPayrun.name, status: selectedPayrun.status },
@@ -372,8 +419,9 @@ export default function Payruns() {
     }
   }
 
-  const canCompute = user?.role === 'ADMIN' || user?.role === 'HR_PAYROLL_MANAGER' || user?.role === 'HR_PAYROLL_USER';
-  const canMarkPaid = user?.role === 'ADMIN' || user?.role === 'HR_PAYROLL_MANAGER';
+  const canCompute  = ['ADMIN', 'HR_PAYROLL_MANAGER', 'HR_PAYROLL_USER'].includes(user?.role);
+  const canValidate  = ['ADMIN', 'HR_PAYROLL_MANAGER', 'HR_PAYROLL_USER'].includes(user?.role);
+  const canMarkPaid  = ['ADMIN', 'HR_PAYROLL_MANAGER', 'HR_PAYROLL_USER'].includes(user?.role);
 
   // Overall metrics across all payrun batches
   const metrics = useMemo(() => {
@@ -471,110 +519,131 @@ export default function Payruns() {
                 </p>
               </div>
 
-              {/* Status Progression Bar */}
+              {/* ── 4-step Progress Bar: Draft → Computed → Validated → Paid ── */}
               <div className="flex items-center border border-slate-200 rounded bg-slate-50 p-1 text-[11px] font-semibold text-slate-600">
-                <span className={`px-2.5 py-1 rounded ${selectedPayrun.status === 'DRAFT' ? 'bg-white shadow-sm text-[#714B67]' : 'text-slate-400'}`}>
-                  1. Draft
+                {/* Step 1 – Draft */}
+                <span className={`px-2.5 py-1 rounded transition-all ${
+                  selectedPayrun.status === 'DRAFT'
+                    ? 'bg-white shadow-sm text-[#714B67]'
+                    : 'text-emerald-600'
+                }`}>
+                  {selectedPayrun.status !== 'DRAFT' ? '✓' : '1.'} Draft
                 </span>
                 <span className="text-slate-300 mx-1">➔</span>
-                <span className={`px-2.5 py-1 rounded ${selectedPayrun.status === 'COMPUTED' || selectedPayrun.status === 'WARNING' ? 'bg-white shadow-sm text-[#714B67]' : 'text-slate-400'}`}>
-                  2. Computed
+                {/* Step 2 – Computed */}
+                <span className={`px-2.5 py-1 rounded transition-all ${
+                  selectedPayrun.status === 'COMPUTED' || selectedPayrun.status === 'WARNING'
+                    ? 'bg-white shadow-sm text-[#714B67]'
+                    : ['VALIDATED', 'PAID'].includes(selectedPayrun.status)
+                      ? 'text-emerald-600'
+                      : 'text-slate-400'
+                }`}>
+                  {['VALIDATED', 'PAID'].includes(selectedPayrun.status) ? '✓' : '2.'} Computed
                 </span>
                 <span className="text-slate-300 mx-1">➔</span>
-                <span className={`px-2.5 py-1 rounded ${selectedPayrun.status === 'VALIDATED' ? 'bg-white shadow-sm text-[#00A09D]' : 'text-slate-400'}`}>
-                  3. Validated
+                {/* Step 3 – Validated */}
+                <span className={`px-2.5 py-1 rounded transition-all ${
+                  selectedPayrun.status === 'VALIDATED'
+                    ? 'bg-white shadow-sm text-[#00A09D]'
+                    : selectedPayrun.status === 'PAID'
+                      ? 'text-emerald-600'
+                      : 'text-slate-400'
+                }`}>
+                  {selectedPayrun.status === 'PAID' ? '✓' : '3.'} Validated
                 </span>
                 <span className="text-slate-300 mx-1">➔</span>
-                <span className={`px-2.5 py-1 rounded ${selectedPayrun.status === 'PAID' ? 'bg-[#00A09D] text-white shadow-sm' : 'text-slate-400'}`}>
+                {/* Step 4 – Paid */}
+                <span className={`px-2.5 py-1 rounded transition-all ${
+                  selectedPayrun.status === 'PAID' ? 'bg-[#00A09D] text-white shadow-sm' : 'text-slate-400'
+                }`}>
                   4. Paid
                 </span>
               </div>
 
-              {/* Primary Processing Action Buttons */}
-              <div className="flex items-center gap-2">
-                {selectedPayrun.status !== 'PAID' && canCompute && (
+              {/* ── Action Buttons (4-step, role-aware) ── */}
+              <div className="flex items-center gap-2 flex-wrap">
+
+                {/* STEP 1→2 & RE-COMPUTE: shown when not PAID or VALIDATED */}
+                {selectedPayrun.status !== 'PAID' && selectedPayrun.status !== 'VALIDATED' && canCompute && (
                   <button
                     onClick={handleCompute}
                     disabled={processingAction !== null}
                     className="btn-secondary text-xs disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
-                    title="Run Sequential Salary Rules Engine"
+                    title="Run salary computation engine"
                   >
                     {processingAction === 'computing' ? (
-                      <>
-                        <RefreshCw className="w-3.5 h-3.5 animate-spin text-[#00A09D]" />
-                        <span>Computing...</span>
-                      </>
+                      <><RefreshCw className="w-3.5 h-3.5 animate-spin text-[#00A09D]" /><span>Computing...</span></>
                     ) : (
-                      <>
-                        <Play className="w-3.5 h-3.5 fill-current text-[#00A09D]" />
-                        <span>{selectedPayrun.status === 'COMPUTED' ? 'Re-Compute' : 'Compute'}</span>
-                      </>
+                      <><Play className="w-3.5 h-3.5 fill-current text-[#00A09D]" />
+                      <span>{(selectedPayrun.status === 'COMPUTED' || selectedPayrun.status === 'WARNING') ? 'Re-Compute' : 'Compute'}</span></>
                     )}
                   </button>
                 )}
 
-                {(selectedPayrun.status === 'COMPUTED' || selectedPayrun.status === 'WARNING') && canCompute && (
+                {/* STEP 2→3: VALIDATE — HR_PAYROLL_MANAGER/ADMIN only, shown when COMPUTED or WARNING */}
+                {(selectedPayrun.status === 'COMPUTED' || selectedPayrun.status === 'WARNING') && canValidate && (
                   <button
                     onClick={handleValidate}
                     disabled={processingAction !== null}
                     className="btn-primary text-xs disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5 shadow-sm"
-                    title="Validate Payroll Integrity and Progress to Payment"
+                    title="Validate and approve payrun"
                   >
                     {processingAction === 'validating' ? (
-                      <>
-                        <RefreshCw className="w-3.5 h-3.5 animate-spin text-white" />
-                        <span>Validating...</span>
-                      </>
+                      <><RefreshCw className="w-3.5 h-3.5 animate-spin text-white" /><span>Validating...</span></>
                     ) : (
-                      <>
-                        <Check className="w-3.5 h-3.5 text-white" />
-                        <span>Validate</span>
-                      </>
+                      <><Check className="w-3.5 h-3.5 text-white" /><span>Validate Payrun</span></>
                     )}
                   </button>
                 )}
 
-                {selectedPayrun.status !== 'PAID' && canMarkPaid && (
+                {/* STEP 2→3: HR_PAYROLL_USER info badge — cannot validate, waits for manager */}
+                {(selectedPayrun.status === 'COMPUTED' || selectedPayrun.status === 'WARNING') && !canValidate && (
+                  <div className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 text-amber-800 border border-amber-200 rounded text-xs font-semibold" title="Waiting for Payroll Manager to validate">
+                    <ShieldAlert className="w-3.5 h-3.5 text-amber-600" />
+                    <span>Awaiting Manager Validation</span>
+                  </div>
+                )}
+
+                {/* STEP 3→4: MARK AS PAID — HR_PAYROLL_MANAGER/ADMIN only, after VALIDATED */}
+                {selectedPayrun.status === 'VALIDATED' && canMarkPaid && (
                   <button
                     onClick={handleMarkPaid}
                     disabled={processingAction !== null}
-                    className="btn-primary text-xs disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5 shadow-sm"
-                    title="Commit Payout & Lock Records"
+                    className="btn-primary text-xs disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5 shadow-sm bg-teal-600 hover:bg-teal-700 text-white"
+                    title="Commit disbursement & lock payslips"
                   >
                     {processingAction === 'marking_paid' ? (
-                      <>
-                        <RefreshCw className="w-3.5 h-3.5 animate-spin text-white" />
-                        <span>Processing Payout...</span>
-                      </>
+                      <><RefreshCw className="w-3.5 h-3.5 animate-spin text-white" /><span>Processing...</span></>
                     ) : (
-                      <>
-                        <CheckCircle2 className="w-3.5 h-3.5 text-white" />
-                        <span>Mark Paid</span>
-                      </>
+                      <><CheckCircle2 className="w-3.5 h-3.5 text-white" /><span>Mark as Paid</span></>
                     )}
                   </button>
                 )}
 
+                {/* STEP 3→4: HR_PAYROLL_USER validated info badge */}
+                {selectedPayrun.status === 'VALIDATED' && !canMarkPaid && (
+                  <div className="flex items-center gap-1.5 px-3 py-1.5 bg-teal-50 text-teal-800 border border-teal-200 rounded text-xs font-semibold" title="Validated — manager will disburse">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-teal-600" />
+                    <span>Validated — Awaiting Disbursement</span>
+                  </div>
+                )}
+
+                {/* PAID: Send Payslips */}
                 {selectedPayrun.status === 'PAID' && (
                   <button
                     onClick={handleSendPayslips}
                     disabled={processingAction !== null}
                     className="btn-secondary text-xs disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
-                    title="Bulk Email Printable Payslips"
+                    title="Bulk email payslips to all employees"
                   >
                     {processingAction === 'sending_slips' ? (
-                      <>
-                        <RefreshCw className="w-3.5 h-3.5 animate-spin text-[#00A09D]" />
-                        <span>Sending Slips...</span>
-                      </>
+                      <><RefreshCw className="w-3.5 h-3.5 animate-spin text-[#00A09D]" /><span>Sending...</span></>
                     ) : (
-                      <>
-                        <Send className="w-3.5 h-3.5 text-[#00A09D]" />
-                        <span>Send Payslips</span>
-                      </>
+                      <><Send className="w-3.5 h-3.5 text-[#00A09D]" /><span>Send Payslips</span></>
                     )}
                   </button>
                 )}
+
               </div>
             </div>
 
@@ -867,11 +936,21 @@ export default function Payruns() {
                       {payruns.map((pr) => {
                         const slipCount = pr._count?.payslips ?? (pr.payslips?.length || 0);
                         return (
-                          <tr key={pr.id} className="hover:bg-slate-50/80 transition-colors">
+                          <tr
+                            key={pr.id}
+                            onClick={() => handleOpenPayrun(pr.id)}
+                            className="hover:bg-purple-50/40 transition-colors cursor-pointer group"
+                          >
                             <td className="px-4 py-3">
-                              <div className="font-semibold text-[#714B67] text-sm">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleOpenPayrun(pr.id);
+                                }}
+                                className="font-semibold text-[#714B67] text-sm group-hover:underline text-left"
+                              >
                                 {pr.name}
-                              </div>
+                              </button>
                               {pr._count?.warnings > 0 && (
                                 <div className="flex items-center gap-1 text-[11px] text-amber-700 mt-0.5">
                                   <AlertTriangle className="w-3 h-3" />
@@ -890,7 +969,8 @@ export default function Payruns() {
                                 </span>
                                 {slipCount > 0 && (
                                   <button
-                                    onClick={() => {
+                                    onClick={(e) => {
+                                      e.stopPropagation();
                                       setBatchFilter(String(pr.id));
                                       setSlipSearch('');
                                       setSlipPage(1);
@@ -916,8 +996,11 @@ export default function Payruns() {
                             </td>
                             <td className="px-4 py-3 text-right">
                               <button
-                                onClick={() => handleOpenPayrun(pr)}
-                                className="btn-outline text-xs px-2.5 py-1 text-[#714B67] hover:border-[#714B67]"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleOpenPayrun(pr.id);
+                                }}
+                                className="btn-outline text-xs px-2.5 py-1 text-[#714B67] hover:border-[#714B67] group-hover:bg-[#714B67] group-hover:text-white transition-all"
                               >
                                 View Sheet &rarr;
                               </button>

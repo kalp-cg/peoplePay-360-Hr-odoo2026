@@ -13,13 +13,21 @@ class EmployeeService {
       return emp ? [emp] : [];
     }
 
-    const cacheKey = `emp_${JSON.stringify(query || {})}_${user.role}_${user.employeeId || ''}`;
+    const q = { ...query };
+    if (user && user.role === 'HR_MANAGER' && q.scope !== 'all') {
+      const subIds = await this.getSubordinateIdsForUser(user);
+      if (subIds !== null) {
+        q.subordinateIds = subIds;
+      }
+    }
+
+    const cacheKey = `emp_${JSON.stringify(q || {})}_${user.role}_${user.employeeId || ''}`;
     const cached = employeeCache.get(cacheKey);
     if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
       return cached.data;
     }
 
-    const employees = await employeeRepository.findAll(query);
+    const employees = await employeeRepository.findAll(q);
 
     if (employees.length === 0) return [];
 
@@ -203,6 +211,23 @@ class EmployeeService {
     });
 
     return { message: 'Employee deleted successfully.' };
+  }
+
+  async getSubordinateIdsForUser(user) {
+    if (!user || user.role === 'ADMIN') return null; // Global access
+    if (user.role === 'EMPLOYEE') {
+      return user.employeeId ? [user.employeeId] : [];
+    }
+
+    if (!user.employeeId) return null;
+
+    // Find direct subordinates
+    const subs = await prisma.employee.findMany({
+      where: { managerId: user.employeeId },
+      select: { id: true },
+    });
+
+    return subs.map((s) => s.id);
   }
 }
 

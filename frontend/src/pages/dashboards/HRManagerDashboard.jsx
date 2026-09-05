@@ -29,14 +29,14 @@ export default function HRManagerDashboard() {
   async function fetchHRDashboard() {
     setLoading(true);
     try {
-      const [dashRes, leavesRes, reqsRes] = await Promise.all([
+      const [dashRes, leavesRes, reqsRes] = await Promise.allSettled([
         api.get('/dashboard'),
         api.get('/time-off/requests', { params: { status: 'PENDING' } }),
         api.get('/employees/profile-change-requests', { params: { status: 'PENDING' } }),
       ]);
-      setDashboardData(dashRes.data);
-      setPendingLeaves(leavesRes.data.filter(l => l.status === 'PENDING'));
-      setProfileRequests(reqsRes.data);
+      if (dashRes.status === 'fulfilled') setDashboardData(dashRes.value.data);
+      if (leavesRes.status === 'fulfilled') setPendingLeaves((leavesRes.value.data || []).filter(l => l.status === 'PENDING'));
+      if (reqsRes.status === 'fulfilled') setProfileRequests(reqsRes.value.data || []);
     } catch (err) {
       console.error('Failed to load HR Dashboard:', err);
     } finally {

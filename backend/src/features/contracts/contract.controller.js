@@ -4,7 +4,7 @@ const { sendSuccess, sendError } = require('../../utils/response');
 class ContractController {
   async getAll(req, res, next) {
     try {
-      const contracts = await contractService.getAllContracts(req.query);
+      const contracts = await contractService.getAllContracts(req.query, req.user);
       return sendSuccess(res, contracts);
     } catch (err) {
       next(err);

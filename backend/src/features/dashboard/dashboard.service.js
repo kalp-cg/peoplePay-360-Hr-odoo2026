@@ -9,8 +9,9 @@ class DashboardService {
   /**
    * Get Live Aggregations from PostgreSQL database
    */
-  async getDashboardData({ departmentId, employeeType, startDate, endDate, period }) {
-    const cacheKey = `dash_${departmentId || ''}_${employeeType || ''}_${startDate || ''}_${endDate || ''}_${period || ''}`;
+  async getDashboardData(query = {}, user = null) {
+    const { departmentId, employeeType, startDate, endDate, period, scope } = query;
+    const cacheKey = `dash_${departmentId || ''}_${employeeType || ''}_${startDate || ''}_${endDate || ''}_${period || ''}_${user?.role || ''}_${user?.employeeId || ''}`;
     const cached = cache.get(cacheKey);
     if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
       return cached.data;
@@ -34,7 +35,20 @@ class DashboardService {
     if (departmentId) empWhere.departmentId = parseInt(departmentId, 10);
     if (employeeType && employeeType !== 'ALL') empWhere.employeeType = employeeType;
 
-    const hasEmpFilter = Boolean(departmentId || (employeeType && employeeType !== 'ALL'));
+    // Subordinate scoping:
+    // HR_MANAGER is a line manager who manages direct subordinates.
+    // ADMIN, HR_PAYROLL_MANAGER, and HR_PAYROLL_USER oversee enterprise-wide compensation & payroll.
+    let subordinateIds = null;
+    if (user && !['ADMIN', 'HR_PAYROLL_MANAGER', 'HR_PAYROLL_USER'].includes(user.role) && scope !== 'all') {
+      const employeeService = require('../employees/employee.service');
+      subordinateIds = await employeeService.getSubordinateIdsForUser(user);
+    }
+
+    if (subordinateIds !== null) {
+      empWhere.id = { in: subordinateIds.length > 0 ? subordinateIds : [-1] };
+    }
+
+    const hasEmpFilter = Boolean(departmentId || (employeeType && employeeType !== 'ALL') || subordinateIds !== null);
     let employeeIds = [];
     if (hasEmpFilter) {
       const filteredEmployees = await prisma.employee.findMany({
@@ -342,8 +356,8 @@ class DashboardService {
       }),
       prisma.attendance.findMany({
         where: { employeeId: empId },
-        orderBy: { date: 'desc' },
-        take: 5,
+        orderBy: [{ date: 'desc' }, { id: 'desc' }],
+        take: 10,
       }),
       attendanceService.getCurrentStatus(user),
       prisma.timeOffAllocation.findMany({
