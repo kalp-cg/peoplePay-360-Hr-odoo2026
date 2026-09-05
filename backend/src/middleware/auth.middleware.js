@@ -5,12 +5,17 @@ const { sendError } = require('../utils/response');
 
 async function authenticate(req, res, next) {
   try {
+    let token = null;
     const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return sendError(res, 'Authentication required. Missing Bearer token.', 401, 'UNAUTHORIZED');
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      token = authHeader.split(' ')[1];
+    } else if (req.query && req.query.token) {
+      token = req.query.token;
     }
 
-    const token = authHeader.split(' ')[1];
+    if (!token) {
+      return sendError(res, 'Authentication required. Missing Bearer token or token parameter.', 401, 'UNAUTHORIZED');
+    }
     let decoded;
     try {
       decoded = jwt.verify(token, env.JWT_SECRET);
