@@ -9,8 +9,9 @@ class DashboardService {
   /**
    * Get Live Aggregations from PostgreSQL database
    */
-  async getDashboardData({ departmentId, employeeType, startDate, endDate, period }) {
-    const cacheKey = `dash_${departmentId || ''}_${employeeType || ''}_${startDate || ''}_${endDate || ''}_${period || ''}`;
+  async getDashboardData(query = {}, user = null) {
+    const { departmentId, employeeType, startDate, endDate, period, scope } = query;
+    const cacheKey = `dash_${departmentId || ''}_${employeeType || ''}_${startDate || ''}_${endDate || ''}_${period || ''}_${user?.role || ''}_${user?.employeeId || ''}`;
     const cached = cache.get(cacheKey);
     if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
       return cached.data;
@@ -36,7 +37,7 @@ class DashboardService {
 
     // Subordinate scoping for HR roles (HR_MANAGER, HR_PAYROLL_USER)
     let subordinateIds = null;
-    if (user && user.role !== 'ADMIN' && query.scope !== 'all') {
+    if (user && user.role !== 'ADMIN' && scope !== 'all') {
       const employeeService = require('../employees/employee.service');
       subordinateIds = await employeeService.getSubordinateIdsForUser(user);
     }
