@@ -6,19 +6,19 @@ const prisma = new PrismaClient();
 async function main() {
   console.log('🌱 Seeding PeoplePay360 database with enterprise-grade data...');
 
-  // 1. Clean existing records in reverse order
+  // 1. Clean existing records in proper dependency order
   await prisma.auditLog.deleteMany({});
   await prisma.payrollWarning.deleteMany({});
   await prisma.payslipLine.deleteMany({});
   await prisma.payslip.deleteMany({});
   await prisma.payrun.deleteMany({});
-  await prisma.salaryRule.deleteMany({});
-  await prisma.salaryStructure.deleteMany({});
   await prisma.timeOffRequest.deleteMany({});
   await prisma.timeOffAllocation.deleteMany({});
   await prisma.timeOffType.deleteMany({});
   await prisma.attendance.deleteMany({});
   await prisma.contract.deleteMany({});
+  await prisma.salaryRule.deleteMany({});
+  await prisma.salaryStructure.deleteMany({});
   await prisma.user.deleteMany({});
   await prisma.employee.deleteMany({});
   await prisma.scheduleDay.deleteMany({});
@@ -584,23 +584,15 @@ async function main() {
     }
   }
 
-  // 12. Create Completed Payrun for August 2026 (Live Database History)
-  const payrunAugust = await prisma.payrun.create({
-    data: {
-      name: 'Payrun - August 2026',
-      salaryStructureId: regularStructure.id,
-      periodStart: new Date('2026-08-01'),
-      periodEnd: new Date('2026-08-31'),
-      status: 'PAID',
-      processedById: userPayroll.id,
-      paidAt: new Date('2026-08-31T17:00:00Z'),
-    },
-  });
-
-  // Generate Payslips for August 2026
-  let totalGrossAugust = 0;
-  let totalDeductionsAugust = 0;
-  let totalNetAugust = 0;
+  // 12. Create Completed Historical Payruns (April 2026 through August 2026)
+  // This powers the "Monthly Payroll Trends" LineChart and "Departmental Salary Expenditure" BarChart!
+  const historicalPeriods = [
+    { name: 'Payrun - April 2026', monthStr: '04', start: '2026-04-01', end: '2026-04-30', paidAt: '2026-04-30T17:00:00Z', multiplier: 0.94 },
+    { name: 'Payrun - May 2026', monthStr: '05', start: '2026-05-01', end: '2026-05-31', paidAt: '2026-05-31T17:00:00Z', multiplier: 0.96 },
+    { name: 'Payrun - June 2026', monthStr: '06', start: '2026-06-01', end: '2026-06-30', paidAt: '2026-06-30T17:00:00Z', multiplier: 0.98 },
+    { name: 'Payrun - July 2026', monthStr: '07', start: '2026-07-01', end: '2026-07-31', paidAt: '2026-07-31T17:00:00Z', multiplier: 0.99 },
+    { name: 'Payrun - August 2026', monthStr: '08', start: '2026-08-01', end: '2026-08-31', paidAt: '2026-08-31T17:00:00Z', multiplier: 1.00 },
+  ];
 
   const empContracts = [
     { emp: empRahul, contract: rahulContractB },
@@ -612,63 +604,109 @@ async function main() {
     { emp: empRohan, contract: contractRohan },
   ];
 
-  for (let i = 0; i < empContracts.length; i++) {
-    const { emp, contract } = empContracts[i];
-    const wage = contract.wage;
-    const basic = Math.round(0.6 * wage);
-    const hra = Math.round(0.2 * basic);
-    const allowance = wage - basic - hra;
-    const gross = basic + hra + allowance;
-    const pf = Math.round(0.12 * basic);
-    const tax = Math.round(0.05 * gross);
-    const net = gross - pf - tax;
+  let lastPaidPayrun = null;
 
-    totalGrossAugust += gross;
-    totalDeductionsAugust += pf + tax;
-    totalNetAugust += net;
-
-    const payslipNum = `PS-2026-08-${String(i + 1).padStart(3, '0')}`;
-    const payslip = await prisma.payslip.create({
+  for (const period of historicalPeriods) {
+    const payrun = await prisma.payrun.create({
       data: {
-        payslipNumber: payslipNum,
-        payrunId: payrunAugust.id,
-        employeeId: emp.id,
-        contractId: contract.id,
-        workingDays: 22.0,
-        presentDays: 22.0,
-        leaveDays: emp.id === empRahul.id ? 2.0 : 0.0,
-        absentDays: emp.id === empPriya.id ? 1.0 : 0.0,
-        overtimeHours: emp.id === empVikram.id ? 2.0 : 0.0,
-        grossSalary: gross,
-        totalDeductions: pf + tax,
-        netSalary: net,
+        name: period.name,
+        salaryStructureId: regularStructure.id,
+        periodStart: new Date(period.start),
+        periodEnd: new Date(period.end),
         status: 'PAID',
-        sentAt: new Date('2026-08-31T18:00:00Z'),
-        payslipLines: {
-          create: [
-            { code: 'BASIC', name: 'Basic Salary', category: 'BASIC', sequence: 1, amount: basic },
-            { code: 'HRA', name: 'House Rent Allowance', category: 'ALLOWANCE', sequence: 2, amount: hra },
-            { code: 'ALLOWANCE', name: 'Special Allowance', category: 'ALLOWANCE', sequence: 3, amount: allowance },
-            { code: 'GROSS', name: 'Gross Salary', category: 'GROSS', sequence: 4, amount: gross },
-            { code: 'PF', name: 'Provident Fund', category: 'DEDUCTION', sequence: 5, amount: pf },
-            { code: 'TAX', name: 'Income Tax (TDS)', category: 'DEDUCTION', sequence: 6, amount: tax },
-            { code: 'NET', name: 'Net Salary', category: 'NET', sequence: 7, amount: net },
-          ],
+        processedById: userPayroll.id,
+        paidAt: new Date(period.paidAt),
+      },
+    });
+    lastPaidPayrun = payrun;
+
+    let totalGross = 0;
+    let totalDeductions = 0;
+    let totalNet = 0;
+
+    for (let i = 0; i < empContracts.length; i++) {
+      const { emp, contract } = empContracts[i];
+      const wage = Math.round(contract.wage * period.multiplier);
+      const basic = Math.round(0.6 * wage);
+      const hra = Math.round(0.2 * basic);
+      const allowance = wage - basic - hra;
+      const gross = basic + hra + allowance;
+      const pf = Math.round(0.12 * basic);
+      const tax = Math.round(0.05 * gross);
+      const net = gross - pf - tax;
+
+      totalGross += gross;
+      totalDeductions += pf + tax;
+      totalNet += net;
+
+      const payslipNum = `PS-2026-${period.monthStr}-${String(i + 1).padStart(3, '0')}`;
+      await prisma.payslip.create({
+        data: {
+          payslipNumber: payslipNum,
+          payrunId: payrun.id,
+          employeeId: emp.id,
+          contractId: contract.id,
+          workingDays: 22.0,
+          presentDays: 22.0,
+          leaveDays: emp.id === empRahul.id && period.monthStr === '08' ? 2.0 : 0.0,
+          absentDays: 0.0,
+          overtimeHours: emp.id === empVikram.id ? 2.0 : 0.0,
+          grossSalary: gross,
+          totalDeductions: pf + tax,
+          netSalary: net,
+          status: 'PAID',
+          sentAt: new Date(period.paidAt),
+          payslipLines: {
+            create: [
+              { code: 'BASIC', name: 'Basic Salary', category: 'BASIC', sequence: 1, amount: basic },
+              { code: 'HRA', name: 'House Rent Allowance', category: 'ALLOWANCE', sequence: 2, amount: hra },
+              { code: 'ALLOWANCE', name: 'Special Allowance', category: 'ALLOWANCE', sequence: 3, amount: allowance },
+              { code: 'GROSS', name: 'Gross Salary', category: 'GROSS', sequence: 4, amount: gross },
+              { code: 'PF', name: 'Provident Fund', category: 'DEDUCTION', sequence: 5, amount: pf },
+              { code: 'TAX', name: 'Income Tax (TDS)', category: 'DEDUCTION', sequence: 6, amount: tax },
+              { code: 'NET', name: 'Net Salary', category: 'NET', sequence: 7, amount: net },
+            ],
+          },
         },
+      });
+    }
+
+    await prisma.payrun.update({
+      where: { id: payrun.id },
+      data: {
+        totalGross,
+        totalDeductions,
+        totalNet,
       },
     });
   }
 
-  await prisma.payrun.update({
-    where: { id: payrunAugust.id },
+  // 13. Create September 2026 Payrun (Ready in DRAFT state for live hackathon evaluator demo)
+  const payrunSept = await prisma.payrun.create({
     data: {
-      totalGross: totalGrossAugust,
-      totalDeductions: totalDeductionsAugust,
-      totalNet: totalNetAugust,
+      name: 'Payrun - September 2026',
+      salaryStructureId: regularStructure.id,
+      periodStart: new Date('2026-09-01'),
+      periodEnd: new Date('2026-09-30'),
+      status: 'DRAFT',
+      processedById: userPayroll.id,
+      payslips: {
+        create: empContracts.map((ec, idx) => ({
+          payslipNumber: `PS-2026-09-${String(idx + 1).padStart(3, '0')}`,
+          employeeId: ec.emp.id,
+          contractId: ec.contract.id,
+          workingDays: 22.0,
+          presentDays: 22.0,
+          grossSalary: 0.0,
+          totalDeductions: 0.0,
+          netSalary: 0.0,
+          status: 'DRAFT',
+        })),
+      },
     },
   });
 
-  // 13. Audit Log Entries
+  // 14. Audit Log Entries
   await prisma.auditLog.create({
     data: {
       userId: userHR.id,
@@ -685,9 +723,9 @@ async function main() {
       userId: userPayroll.id,
       action: 'PAYRUN_COMPLETED',
       entityName: 'Payrun',
-      entityId: String(payrunAugust.id),
+      entityId: String(lastPaidPayrun?.id || 1),
       previousValue: JSON.stringify({ status: 'VALIDATED' }),
-      newValue: JSON.stringify({ status: 'PAID', totalNet: totalNetAugust }),
+      newValue: JSON.stringify({ status: 'PAID', totalNet: 374900 }),
     },
   });
 
@@ -695,8 +733,8 @@ async function main() {
   console.log(`   Departments: 4`);
   console.log(`   Employees: ${allEmployees.length}`);
   console.log(`   Users: 5 (Admin, HR Manager, HR Payroll User, HR Payroll Manager, Employee)`);
-  console.log(`   Salary Structure: Regular Salary (7 sequential rules)`);
-  console.log(`   Historical Payrun: August 2026 (Status: PAID, Total Net: ₹${totalNetAugust.toLocaleString()})`);
+  console.log('   Historical Payruns: 5 (April 2026 - August 2026, Status: PAID)');
+  console.log('   Demo Payrun: September 2026 (Status: DRAFT for live evaluation)');
 }
 
 main()
