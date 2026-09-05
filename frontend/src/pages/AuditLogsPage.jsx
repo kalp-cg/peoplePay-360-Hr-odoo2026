@@ -17,28 +17,42 @@ export default function AuditLogsPage() {
     fetchLogs();
   }, [entityFilter]);
 
+  const formatValue = (val) => {
+    if (!val) return 'None';
+    if (typeof val === 'object') return JSON.stringify(val, null, 2);
+    try {
+      const parsed = JSON.parse(val);
+      return JSON.stringify(parsed, null, 2);
+    } catch {
+      return String(val);
+    }
+  };
+
   async function fetchLogs() {
     setLoading(true);
     try {
       let url = '/audit?limit=100';
       if (entityFilter) url += `&entityName=${entityFilter}`;
       const res = await api.get(url);
-      setLogs(res.data);
+      const list = Array.isArray(res.data) ? res.data : Array.isArray(res) ? res : [];
+      setLogs(list);
     } catch (err) {
       console.error('Failed to load audit logs:', err);
+      setLogs([]);
     } finally {
       setLoading(false);
     }
   }
 
   const filteredLogs = logs.filter((log) => {
-    const q = searchTerm.toLowerCase();
-    return (
-      log.action.toLowerCase().includes(q) ||
-      (log.entityName && log.entityName.toLowerCase().includes(q)) ||
-      (log.user && (log.user.name?.toLowerCase().includes(q) || log.user.email.toLowerCase().includes(q))) ||
-      (log.entityId && log.entityId.toLowerCase().includes(q))
-    );
+    const q = (searchTerm || '').trim().toLowerCase();
+    if (!q) return true;
+    const action = (log.action || '').toLowerCase();
+    const entity = (log.entityName || '').toLowerCase();
+    const entityId = (log.entityId ? String(log.entityId) : '').toLowerCase();
+    const userName = (log.user?.name || '').toLowerCase();
+    const userEmail = (log.user?.email || '').toLowerCase();
+    return action.includes(q) || entity.includes(q) || entityId.includes(q) || userName.includes(q) || userEmail.includes(q);
   });
 
   const actionColors = {
@@ -214,13 +228,7 @@ export default function AuditLogsPage() {
                   Previous State
                 </h4>
                 <pre className="font-mono bg-white p-2.5 rounded border border-rose-200 text-rose-900 overflow-x-auto whitespace-pre-wrap max-h-60 text-[11px]">
-                  {selectedLog.previousValue ? (
-                    typeof selectedLog.previousValue === 'object' 
-                      ? JSON.stringify(selectedLog.previousValue, null, 2)
-                      : selectedLog.previousValue
-                  ) : (
-                    'None / Initial creation'
-                  )}
+                  {formatValue(selectedLog.previousValue)}
                 </pre>
               </div>
 
@@ -229,13 +237,7 @@ export default function AuditLogsPage() {
                   New State / Changes
                 </h4>
                 <pre className="font-mono bg-white p-2.5 rounded border border-emerald-200 text-emerald-900 overflow-x-auto whitespace-pre-wrap max-h-60 text-[11px]">
-                  {selectedLog.newValue ? (
-                    typeof selectedLog.newValue === 'object'
-                      ? JSON.stringify(selectedLog.newValue, null, 2)
-                      : selectedLog.newValue
-                  ) : (
-                    'None / Deletion'
-                  )}
+                  {formatValue(selectedLog.newValue)}
                 </pre>
               </div>
             </div>

@@ -52,6 +52,24 @@ export default function Payruns() {
   const [viewPayslip, setViewPayslip] = useState(null);
   const [sendingSlipId, setSendingSlipId] = useState(null);
 
+  const getStatusBadge = (status) => {
+    switch (status) {
+      case 'PAID':
+        return 'bg-emerald-50 text-emerald-700 border-emerald-300';
+      case 'VALIDATED':
+        return 'bg-teal-50 text-[#00A09D] border-[#00A09D]/30';
+      case 'COMPUTED':
+        return 'bg-purple-50 text-[#714B67] border-[#714B67]/30';
+      case 'WARNING':
+        return 'bg-amber-50 text-amber-700 border-amber-300';
+      case 'CANCELLED':
+        return 'bg-rose-50 text-rose-700 border-rose-300';
+      case 'DRAFT':
+      default:
+        return 'bg-slate-100 text-slate-700 border-slate-300';
+    }
+  };
+
   useEffect(() => {
     fetchPayruns();
     fetchStructures();
