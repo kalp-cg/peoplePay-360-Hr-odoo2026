@@ -48,6 +48,15 @@ class PayrollController {
     }
   }
 
+  async submitForReview(req, res, next) {
+    try {
+      const submitted = await payrollService.submitForReview(req.params.id, req.user);
+      return sendSuccess(res, submitted, 200, 'Payrun submitted for manager review.');
+    } catch (err) {
+      next(err);
+    }
+  }
+
   async validate(req, res, next) {
     try {
       const validated = await payrollService.validatePayrun(req.params.id, req.user);
