@@ -25,7 +25,7 @@ export default function Navbar() {
   const location = useLocation();
   const navigate = useNavigate();
 
-  const [attStatus, setAttStatus] = useState({ checkedIn: false, elapsedHours: 0, loading: false });
+  const [attStatus, setAttStatus] = useState({ checkedIn: false, elapsedHours: 0, workedHours: 0, loading: false });
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [errorInfo, setErrorInfo] = useState(null);
   const [copied, setCopied] = useState(false);
@@ -35,11 +35,12 @@ export default function Navbar() {
     const interval = setInterval(fetchAttendanceStatus, 30000);
 
     const handleSync = (e) => {
-      if (e.detail?.checkedIn !== undefined) {
+      if (e?.detail?.checkedIn !== undefined) {
         setAttStatus(prev => ({ ...prev, checkedIn: e.detail.checkedIn }));
       }
       fetchAttendanceStatus();
     };
+
     window.addEventListener('attendance-status-changed', handleSync);
     window.addEventListener('attendance-updated', handleSync);
 
@@ -76,7 +77,6 @@ export default function Navbar() {
 
   async function handleAttendanceAction(action) {
     const nextCheckedIn = action === 'CHECK_IN';
-    // Optimistic update
     setAttStatus((prev) => ({ ...prev, checkedIn: nextCheckedIn, loading: true }));
     window.dispatchEvent(new CustomEvent('attendance-status-changed', {
       detail: { checkedIn: nextCheckedIn, action }
@@ -85,12 +85,20 @@ export default function Navbar() {
     try {
       const res = await api.post('/attendance/quick-toggle', { action });
       await fetchAttendanceStatus();
+      window.dispatchEvent(new CustomEvent('attendance-updated'));
       window.dispatchEvent(new CustomEvent('attendance-status-changed', {
         detail: { checkedIn: res.data?.checkedIn ?? nextCheckedIn, record: res.data }
       }));
     } catch (err) {
       console.error('[Attendance Action Error]:', err);
-      alert(err.message || `Failed to ${action === 'CHECK_IN' ? 'check in' : 'check out'}.`);
+      setErrorInfo({
+        action: 'Attendance Check-in / Check-out',
+        message: err.message || 'Failed to toggle attendance status.',
+        user: { name: user?.name, email: user?.email, role: user?.role, employeeId: user?.employeeId },
+        timestamp: new Date().toISOString(),
+        url: window.location.href,
+        stack: err.stack || err.toString(),
+      });
       await fetchAttendanceStatus();
     } finally {
       setAttStatus((prev) => ({ ...prev, loading: false }));
@@ -115,32 +123,23 @@ export default function Navbar() {
     { label: 'Salary Rules', path: '/salary-config', icon: Sliders, roles: ['ADMIN', 'HR_PAYROLL_MANAGER', 'HR_PAYROLL_USER'] },
   ];
 
-  const filteredNav = navItems.filter((item) => item.roles.includes(user?.role));
+  const filteredNav = navItems.filter((item) => user && item.roles.includes(user.role));
 
   return (
-    <header className="bg-[#714B67] text-white sticky top-0 z-50 shadow-md">
-      {/* Top Main Navigation Bar */}
+    <nav className="bg-[#5C3A56] border-b border-[#4A2E48] text-white sticky top-0 z-50 shadow-md">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-14">
-
-          {/* Left: Brand / Logo */}
-          <div className="flex items-center gap-6">
-            <Link to="/" className="flex items-center gap-2.5 group">
-              <div className="w-8 h-8 rounded-lg bg-[#00A09D] flex items-center justify-center font-bold text-base text-white shadow-sm group-hover:scale-105 transition-transform">
-                <span>⏱</span>
+          
+          {/* Left Side: Brand Logo + Desktop Nav Links */}
+          <div className="flex items-center gap-6 overflow-hidden">
+            <Link to="/" className="flex items-center gap-2 font-bold text-base tracking-tight shrink-0 text-white hover:opacity-90 transition-opacity">
+              <div className="w-7 h-7 rounded-full bg-[#00A09D] flex items-center justify-center text-white shadow-xs">
+                <span className="text-xs font-black">P</span>
               </div>
-              <div className="flex flex-col">
-                <span className="font-extrabold text-base tracking-tight text-white leading-tight">
-                  PeoplePay<span className="text-teal-300">360</span>
-                </span>
-                <span className="text-[9px] uppercase tracking-wider text-teal-200 font-semibold leading-none">
-                  HR & Payroll
-                </span>
-              </div>
+              <span className="text-white">PeoplePay<span className="text-teal-300">360</span></span>
             </Link>
 
-            {/* Desktop Navigation Links */}
-            <nav className="hidden lg:flex items-center gap-1">
+            <div className="hidden lg:flex items-center gap-1 overflow-x-auto py-1 scrollbar-none">
               {filteredNav.map((item) => {
                 const Icon = item.icon;
                 const isActive = location.pathname === item.path || (item.path !== '/' && location.pathname.startsWith(item.path));
@@ -148,57 +147,74 @@ export default function Navbar() {
                   <Link
                     key={item.path}
                     to={item.path}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold whitespace-nowrap transition-colors ${
                       isActive
-                        ? 'bg-[#00A09D] text-white font-bold shadow-xs'
-                        : 'text-white/85 hover:text-white hover:bg-white/10'
+                        ? 'bg-white/20 text-white shadow-2xs font-bold'
+                        : 'text-white/80 hover:text-white hover:bg-white/10'
                     }`}
                   >
-                    <Icon className="w-3.5 h-3.5" />
+                    <Icon className="w-3.5 h-3.5 text-teal-300" />
                     <span>{item.label}</span>
                   </Link>
                 );
               })}
-            </nav>
+            </div>
           </div>
 
           {/* Right: Quick Actions, User Profile & Logout */}
           <div className="flex items-center gap-2 sm:gap-3 shrink-0 ml-2">
             
-            {/* Attendance Two-Option Controls: Check In & Check Out */}
+            {/* Attendance Toggle Widget */}
             {user?.employeeId && (
-              <div className="flex items-center bg-black/25 p-0.5 rounded-md border border-white/15 text-xs gap-1">
-                {/* Option 1: Check In */}
+              <div className="flex items-center bg-black/25 p-1 rounded-lg border border-white/15 text-xs gap-1 shadow-inner">
+                {/* Left Button: Action Trigger */}
                 <button
-                  type="button"
-                  onClick={() => handleAttendanceAction('CHECK_IN')}
-                  disabled={attStatus.loading || attStatus.checkedIn}
-                  title={attStatus.checkedIn ? 'You are currently Checked In' : 'Click to Check In for Today'}
-                  className={`flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded transition-all ${
+                  onClick={() => handleAttendanceAction(attStatus.checkedIn ? 'CHECK_OUT' : 'CHECK_IN')}
+                  disabled={attStatus.loading}
+                  title={
                     attStatus.checkedIn
-                      ? 'bg-emerald-500/25 text-emerald-300 border border-emerald-400/30 cursor-default'
-                      : 'bg-[#00A09D] hover:bg-[#008b88] text-white cursor-pointer shadow-xs active:scale-95'
+                      ? `Shift Active (${attStatus.elapsedHours}h). Click to Check Out`
+                      : attStatus.workedHours > 0
+                      ? `Logged ${attStatus.workedHours}h today. Click to Check In Again`
+                      : 'Click to Check In for Today'
+                  }
+                  className={`flex items-center gap-1.5 text-[11px] font-bold px-3 py-1.5 rounded-md transition-all shadow-xs ${
+                    attStatus.checkedIn
+                      ? 'bg-emerald-500 hover:bg-emerald-600 text-white border border-emerald-400'
+                      : 'bg-[#00A09D] hover:bg-[#008b88] text-white border border-teal-400/40'
                   }`}
                 >
-                  <span className={`w-2 h-2 rounded-full ${attStatus.checkedIn ? 'bg-emerald-400 animate-pulse' : 'bg-teal-200'}`}></span>
-                  <span>{attStatus.checkedIn ? 'Checked In' : 'Check In'}</span>
+                  <span className={`w-2 h-2 rounded-full ${attStatus.checkedIn ? 'bg-white animate-pulse' : 'bg-teal-200'}`}></span>
+                  <span>
+                    {attStatus.loading
+                      ? 'Updating...'
+                      : attStatus.checkedIn
+                      ? `Checked In (${attStatus.elapsedHours}h)`
+                      : attStatus.workedHours > 0
+                      ? 'Check In Again'
+                      : 'Check In'}
+                  </span>
                 </button>
 
-                {/* Option 2: Check Out */}
-                <button
-                  type="button"
-                  onClick={() => handleAttendanceAction('CHECK_OUT')}
-                  disabled={attStatus.loading || !attStatus.checkedIn}
-                  title={!attStatus.checkedIn ? 'You are currently Out of Office' : 'Click to Check Out of Office'}
-                  className={`flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded transition-all ${
-                    !attStatus.checkedIn
-                      ? 'text-white/40 bg-white/5 border border-transparent cursor-default'
-                      : 'bg-[#714B67] hover:bg-[#5a3b52] text-white cursor-pointer shadow-xs active:scale-95 border border-white/20'
-                  }`}
-                >
-                  <span className={`w-2 h-2 rounded-full ${!attStatus.checkedIn ? 'bg-slate-400' : 'bg-rose-400 animate-pulse'}`}></span>
-                  <span>{attStatus.checkedIn ? 'Check Out' : 'Out of Office'}</span>
-                </button>
+                {/* Right Status Badge */}
+                <div className="hidden md:flex items-center px-2.5 py-1 text-[11px] font-medium">
+                  {attStatus.checkedIn ? (
+                    <span className="px-2 py-0.5 rounded bg-emerald-950/60 text-emerald-300 border border-emerald-500/30 flex items-center gap-1.5 font-semibold">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>
+                      Shift Active
+                    </span>
+                  ) : attStatus.workedHours > 0 ? (
+                    <span className="px-2 py-0.5 rounded bg-rose-950/60 text-rose-200 border border-rose-500/40 flex items-center gap-1.5 font-semibold">
+                      <span className="w-1.5 h-1.5 rounded-full bg-rose-400"></span>
+                      Checked Out ({attStatus.workedHours}h Logged Today)
+                    </span>
+                  ) : (
+                    <span className="px-2 py-0.5 rounded bg-black/40 text-slate-300 border border-white/10 flex items-center gap-1.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
+                      Out of Office
+                    </span>
+                  )}
+                </div>
               </div>
             )}
 
@@ -335,7 +351,6 @@ export default function Navbar() {
           </div>
         </div>
       )}
-    </header>
+    </nav>
   );
 }
-
