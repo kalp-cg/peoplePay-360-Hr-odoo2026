@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  DollarSign, Plus, Play, CheckCircle2, AlertTriangle, 
+import {
+  DollarSign, Plus, Play, CheckCircle2, AlertTriangle,
   Send, FileDown, Check, ArrowLeft, X, Eye, ShieldAlert,
   RefreshCw, AlertCircle, Copy
 } from 'lucide-react';
@@ -300,28 +300,27 @@ export default function Payruns() {
         {/* ----------------- PAYRUN PROCESSING SCREEN ----------------- */}
         {selectedPayrun ? (
           <div className="space-y-6">
-            
+
             {/* Header & Status Ribbon & Action Buttons Bar */}
             <div className="bg-white border border-slate-200 rounded-lg p-5 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div>
                 <div className="flex items-center gap-3">
                   <h2 className="text-xl font-bold text-[#2C3E50]">{selectedPayrun.name}</h2>
-                  <span className={`px-2.5 py-0.5 text-xs font-bold rounded-full border ${
-                    selectedPayrun.status === 'PAID'
+                  <span className={`px-2.5 py-0.5 text-xs font-bold rounded-full border ${selectedPayrun.status === 'PAID'
                       ? 'bg-teal-50 text-[#00A09D] border-[#00A09D]/30'
                       : selectedPayrun.status === 'VALIDATED'
-                      ? 'bg-purple-50 text-[#714B67] border-[#714B67]/30'
-                      : selectedPayrun.status === 'WARNING'
-                      ? 'bg-slate-100 text-[#2C3E50] border-slate-300'
-                      : selectedPayrun.status === 'COMPUTED'
-                      ? 'bg-purple-50/70 text-[#714B67] border-[#714B67]/20'
-                      : 'bg-slate-100 text-slate-700 border-slate-300'
-                  }`}>
+                        ? 'bg-purple-50 text-[#714B67] border-[#714B67]/30'
+                        : selectedPayrun.status === 'WARNING'
+                          ? 'bg-slate-100 text-[#2C3E50] border-slate-300'
+                          : selectedPayrun.status === 'COMPUTED'
+                            ? 'bg-purple-50/70 text-[#714B67] border-[#714B67]/20'
+                            : 'bg-slate-100 text-slate-700 border-slate-300'
+                    }`}>
                     {selectedPayrun.status}
                   </span>
                 </div>
                 <p className="text-xs text-slate-500 mt-1">
-                  Structure: <span className="font-semibold text-slate-700">{selectedPayrun.salaryStructure?.name}</span> • 
+                  Structure: <span className="font-semibold text-slate-700">{selectedPayrun.salaryStructure?.name}</span> •
                   Period: <span className="font-mono">{new Date(selectedPayrun.periodStart).toLocaleDateString()} - {new Date(selectedPayrun.periodEnd).toLocaleDateString()}</span>
                 </p>
               </div>
@@ -515,11 +514,10 @@ export default function Payruns() {
                         ₹{p.netSalary?.toLocaleString()}
                       </td>
                       <td className="px-4 py-3">
-                        <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full border ${
-                          p.status === 'PAID'
+                        <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full border ${p.status === 'PAID'
                             ? 'bg-teal-50 text-[#00A09D] border-[#00A09D]/30'
                             : 'bg-purple-50 text-[#714B67] border-[#714B67]/30'
-                        }`}>
+                          }`}>
                           {p.status}
                         </span>
                       </td>
@@ -578,15 +576,14 @@ export default function Payruns() {
                     <td className="px-4 py-3 font-mono font-medium">₹{pr.totalGross?.toLocaleString() || 0}</td>
                     <td className="px-4 py-3 font-mono font-bold text-teal-700 text-sm">₹{pr.totalNet?.toLocaleString() || 0}</td>
                     <td className="px-4 py-3">
-                      <span className={`px-2.5 py-0.5 text-[10px] font-bold rounded-full border ${
-                        pr.status === 'PAID'
+                      <span className={`px-2.5 py-0.5 text-[10px] font-bold rounded-full border ${pr.status === 'PAID'
                           ? 'bg-teal-50 text-[#00A09D] border-[#00A09D]/30'
                           : pr.status === 'VALIDATED'
-                          ? 'bg-purple-50 text-[#714B67] border-[#714B67]/30'
-                          : pr.status === 'WARNING'
-                          ? 'bg-slate-100 text-[#2C3E50] border-slate-300'
-                          : 'bg-slate-100 text-slate-700 border-slate-300'
-                      }`}>
+                            ? 'bg-purple-50 text-[#714B67] border-[#714B67]/30'
+                            : pr.status === 'WARNING'
+                              ? 'bg-slate-100 text-[#2C3E50] border-slate-300'
+                              : 'bg-slate-100 text-slate-700 border-slate-300'
+                        }`}>
                         {pr.status}
                       </span>
                     </td>
@@ -611,7 +608,7 @@ export default function Payruns() {
       {wizardOpen && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in">
           <div className="bg-white border border-slate-200 rounded-lg shadow-2xl max-w-2xl w-full">
-            
+
             {/* Wizard Header */}
             <div className="p-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
               <div>
@@ -841,7 +838,7 @@ export default function Payruns() {
                 <AlertCircle className="w-5 h-5" />
                 <h3 className="font-bold text-sm text-[#2C3E50]">Operation Failed - Technical Diagnostics</h3>
               </div>
-              <button 
+              <button
                 onClick={() => setErrorInfo(null)}
                 className="text-slate-400 hover:text-slate-600 p-1 rounded"
               >
@@ -868,7 +865,7 @@ export default function Payruns() {
                   {copied ? '✓ Copied to clipboard! Ready to paste.' : 'Click to copy error payload'}
                 </span>
                 <div className="flex items-center gap-2">
-                  <button 
+                  <button
                     onClick={() => setErrorInfo(null)}
                     className="btn-outline text-xs px-3 py-1.5"
                   >

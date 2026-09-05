@@ -24,8 +24,7 @@ export function AuthProvider({ children }) {
   async function checkAuth() {
     const token = localStorage.getItem('token');
     if (!token) {
-      // Auto-login as Admin for instant frictionless evaluation if no user logged in
-      await quickLogin('admin@peoplepay360.com', p('Admin'));
+      setUser(null);
       setLoading(false);
       return;
     }
@@ -34,8 +33,9 @@ export function AuthProvider({ children }) {
       const res = await api.get('/auth/me');
       setUser(res.data);
     } catch (err) {
-      console.warn('Session expired, logging in as admin...', err);
-      await quickLogin('admin@peoplepay360.com', p('Admin'));
+      console.warn('Session expired or invalid token, clearing session:', err);
+      localStorage.removeItem('token');
+      setUser(null);
     } finally {
       setLoading(false);
     }
