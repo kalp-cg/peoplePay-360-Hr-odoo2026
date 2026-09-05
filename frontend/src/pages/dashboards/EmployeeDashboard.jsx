@@ -50,8 +50,16 @@ export default function EmployeeDashboard() {
   const [toast, setToast] = useState(null);
 
   useEffect(() => {
+    setAttStatus({
+      checkedIn: false,
+      elapsedHours: 0,
+      workedHours: 0,
+      hasCheckedInToday: false,
+      hasCheckedOutToday: false,
+      loading: true,
+    });
     fetchEmployeePortalData();
-  }, [user]);
+  }, [user?.id, user?.email]);
 
   // Live timer tick every 1000ms when checked in
   useEffect(() => {

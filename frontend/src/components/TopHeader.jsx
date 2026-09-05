@@ -21,6 +21,18 @@ export default function TopHeader({ onOpenMobileSidebar = () => {} }) {
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
+    // Immediately reset attendance state so previous user's status never persists across sessions
+    setAttStatus({
+      checkedIn: false,
+      elapsedHours: 0,
+      workedHours: 0,
+      hasCheckedInToday: false,
+      hasCheckedOutToday: false,
+      loading: Boolean(user),
+    });
+
+    if (!user) return;
+
     fetchAttendanceStatus();
     const interval = setInterval(fetchAttendanceStatus, 30000);
 
@@ -39,7 +51,7 @@ export default function TopHeader({ onOpenMobileSidebar = () => {} }) {
       window.removeEventListener('attendance-status-changed', handleSync);
       window.removeEventListener('attendance-updated', handleSync);
     };
-  }, [user]);
+  }, [user?.id, user?.email]);
 
   async function fetchAttendanceStatus() {
     if (!user) return;

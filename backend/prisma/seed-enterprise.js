@@ -185,16 +185,45 @@ async function main() {
   const createdContracts = [];
   const createdAllocations = [];
 
-  // Standalone Super-Admin (User ID 1)
+  // Dedicated Super-Admin Employee Profile (EMP000)
+  const superAdminEmp = await prisma.employee.create({
+    data: {
+      employeeId: 'EMP000',
+      name: 'System Administrator',
+      email: 'admin@peoplepay360.com',
+      phone: '+91 9800000000',
+      departmentId: depts['OPS'].id,
+      jobPositionId: positionsList.find(p => p.deptCode === 'OPS')?.id || positionsList[0].id,
+      workingScheduleId: schedule40.id,
+      joiningDate: new Date('2024-01-01T00:00:00.000Z'),
+      status: 'ACTIVE',
+      bankName: 'HDFC Bank',
+      bankAccountNumber: '999900001111',
+      bankIfscCode: 'HDFC0000123',
+      panNumber: 'ADMPA0000Z',
+    },
+  });
+  createdEmployees.push({ ...superAdminEmp, wage: 120000, role: 'ADMIN' });
+
+  // Standalone Super-Admin (User ID 1) linked to EMP000
   const superAdmin = await prisma.user.create({
     data: {
       email: 'admin@peoplepay360.com',
       password: adminPasswordHash,
       name: 'System Administrator',
       role: 'ADMIN',
+      employeeId: superAdminEmp.id,
     },
   });
   createdUsers.push(superAdmin);
+
+  // Time off allocations for Admin
+  await prisma.timeOffAllocation.createMany({
+    data: [
+      { employeeId: superAdminEmp.id, timeOffTypeId: paidTimeOffType.id, allocatedDays: 24, takenDays: 0, remainingDays: 24, year: 2026 },
+      { employeeId: superAdminEmp.id, timeOffTypeId: sickLeaveType.id, allocatedDays: 12, takenDays: 0, remainingDays: 12, year: 2026 },
+    ],
+  });
 
   // Dedicated generator tracking set to prevent ANY duplicate full names
   const usedFullNames = new Set([

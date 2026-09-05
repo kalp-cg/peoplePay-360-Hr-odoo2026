@@ -92,9 +92,11 @@ class AttendanceService {
   }
 
   async recordAttendance(data, user) {
-    let empId = data.employeeId ? parseInt(data.employeeId, 10) : user.employeeId;
+    let empId = null;
     if (user.role === 'EMPLOYEE') {
-      empId = user.employeeId;
+      empId = await this.resolveUserEmployeeId(user);
+    } else {
+      empId = data.employeeId ? parseInt(data.employeeId, 10) : await this.resolveUserEmployeeId(user);
     }
 
     if (!empId) {
@@ -188,24 +190,90 @@ class AttendanceService {
     return updated;
   }
 
-  async getCurrentStatus(user) {
-    let empId = user.employeeId;
-    if (!empId) {
-      const matchedEmp = await prisma.employee.findFirst({
-        where: { OR: [{ email: user.email }, { employeeId: 'EMP000' }, { status: 'ACTIVE' }] },
-        orderBy: { id: 'asc' },
+  async resolveUserEmployeeId(user) {
+    if (user?.employeeId) {
+      return parseInt(user.employeeId, 10);
+    }
+    if (!user) return null;
+
+    // Strict lookup: only an employee record with this user's exact email
+    let emp = await prisma.employee.findUnique({
+      where: { email: user.email },
+    });
+
+    // If user is ADMIN and has no employee profile, provision EMP000 dedicated to admin
+    if (!emp && user.role === 'ADMIN') {
+      const defaultDept = await prisma.department.findFirst({ where: { code: 'OPS' } }) ||
+                          await prisma.department.findFirst();
+      const defaultJob = await prisma.jobPosition.findFirst({ where: { departmentId: defaultDept?.id } }) ||
+                         await prisma.jobPosition.findFirst();
+      const defaultSched = await prisma.workingSchedule.findFirst();
+
+      emp = await prisma.employee.create({
+        data: {
+          employeeId: 'EMP000',
+          name: user.name || 'System Administrator',
+          email: user.email,
+          phone: '+91 9800000000',
+          departmentId: defaultDept ? defaultDept.id : 1,
+          jobPositionId: defaultJob ? defaultJob.id : 1,
+          employeeType: 'FULL_TIME',
+          joiningDate: new Date('2024-01-01'),
+          status: 'ACTIVE',
+          workingScheduleId: defaultSched ? defaultSched.id : null,
+          bankAccountNumber: '999900001111',
+          bankName: 'HDFC Bank',
+          bankIfscCode: 'HDFC0000123',
+          panNumber: 'ADMPA0000Z',
+        },
       });
-      if (matchedEmp) {
-        empId = matchedEmp.id;
-        user.employeeId = matchedEmp.id;
+
+      // Provide leave allocation defaults for EMP000
+      const timeOffTypes = await prisma.timeOffType.findMany().catch(() => []);
+      for (const tot of timeOffTypes) {
+        await prisma.timeOffAllocation.create({
+          data: {
+            employeeId: emp.id,
+            timeOffTypeId: tot.id,
+            allocatedDays: tot.name.toLowerCase().includes('sick') ? 12 : 24,
+            takenDays: 0,
+            remainingDays: tot.name.toLowerCase().includes('sick') ? 12 : 24,
+            year: 2026,
+          },
+        }).catch(() => {});
       }
     }
 
-    if (!empId) {
-      return { hasEmployeeProfile: false, checkedIn: false, record: null };
+    if (emp) {
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { employeeId: emp.id },
+      }).catch(() => {});
+      user.employeeId = emp.id;
+      return emp.id;
     }
 
-    const numericEmpId = parseInt(user.employeeId, 10);
+    return null;
+  }
+
+  async getCurrentStatus(user) {
+    const numericEmpId = await this.resolveUserEmployeeId(user);
+
+    if (!numericEmpId) {
+      return {
+        hasEmployeeProfile: false,
+        checkedIn: false,
+        hasCheckedInToday: false,
+        hasCheckedOutToday: false,
+        checkInTime: null,
+        checkOutTime: null,
+        elapsedHours: 0,
+        workedHours: 0,
+        breakHours: 0,
+        status: 'OUT_OF_OFFICE',
+        record: null,
+      };
+    }
 
     // 1. Check for any active unclosed check-in (checkOut is null)
     const openRecord = await attendanceRepository.findOpenRecord(numericEmpId);
@@ -282,21 +350,7 @@ class AttendanceService {
   }
 
   async quickToggle(user, explicitAction = null) {
-    let empId = user.employeeId;
-    if (!empId) {
-      const matchedEmp = await prisma.employee.findFirst({
-        where: { OR: [{ email: user.email }, { employeeId: 'EMP000' }, { status: 'ACTIVE' }] },
-        orderBy: { id: 'asc' },
-      });
-      if (matchedEmp) {
-        empId = matchedEmp.id;
-        user.employeeId = matchedEmp.id;
-        await prisma.user.update({
-          where: { id: user.id },
-          data: { employeeId: matchedEmp.id },
-        }).catch(() => {});
-      }
-    }
+    const empId = await this.resolveUserEmployeeId(user);
 
     if (!empId) {
       throw { statusCode: 400, message: 'Current user has no associated employee profile.', code: 'NO_EMPLOYEE_PROFILE' };
