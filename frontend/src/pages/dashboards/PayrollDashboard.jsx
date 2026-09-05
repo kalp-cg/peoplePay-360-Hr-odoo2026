@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  DollarSign, FileCheck, FileText, CheckCircle2, AlertTriangle, 
+  DollarSign, FileCheck, FileText, CheckCircle2, AlertTriangle, AlertCircle,
   RefreshCw, ArrowUpRight, Plus, Calculator, ChevronRight, ShieldCheck 
 } from 'lucide-react';
 import { 
