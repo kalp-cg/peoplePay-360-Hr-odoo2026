@@ -110,7 +110,7 @@ export default function Navbar() {
   const filteredNav = navItems.filter((item) => user && item.roles.includes(user.role));
 
   return (
-    <header className="bg-[#714B67] text-white shadow-md select-none sticky top-0 z-50">
+    <header className="bg-[#5D3E5B] text-white shadow-md select-none sticky top-0 z-50">
       {/* Top Main Navigation Bar */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-14">
@@ -118,18 +118,18 @@ export default function Navbar() {
           {/* Logo & Brand */}
           <div className="flex items-center gap-3">
             <Link to="/" className="flex items-center gap-2.5 font-bold text-lg tracking-tight hover:opacity-95 transition-opacity">
-              <div className="w-8 h-8 rounded bg-white/10 flex items-center justify-center border border-white/20 shadow-xs">
+              <div className="w-8 h-8 rounded-full bg-[#00A09D] flex items-center justify-center shadow-xs">
                 <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <circle cx="12" cy="12" r="9" stroke="#00A09D" strokeWidth="2.2" strokeDasharray="42 12" />
+                  <circle cx="12" cy="12" r="9" stroke="white" strokeWidth="2" strokeDasharray="42 12" />
                   <path d="M12 7v5l3 3" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                  <circle cx="12" cy="12" r="2" fill="#00A09D" />
+                  <circle cx="12" cy="12" r="2" fill="white" />
                 </svg>
               </div>
-              <span className="font-semibold tracking-wide">PeoplePay<span className="text-teal-300">360</span></span>
+              <span className="font-bold text-white tracking-wide text-base">PeoplePay<span className="text-teal-300">360</span></span>
             </Link>
 
             {/* Odoo App Navigation Links (Desktop) */}
-            <nav className="hidden xl:flex items-center space-x-1 ml-3">
+            <nav className="hidden xl:flex items-center space-x-1.5 ml-4">
               {filteredNav.map((item) => {
                 const Icon = item.icon;
                 const isActive = location.pathname === item.path || (item.path !== '/' && location.pathname.startsWith(item.path));
@@ -137,10 +137,10 @@ export default function Navbar() {
                   <Link
                     key={item.path}
                     to={item.path}
-                    className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-sm text-xs font-medium transition-colors ${
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs transition-all ${
                       isActive
-                        ? 'bg-black/20 text-white shadow-inner font-semibold'
-                        : 'text-white/80 hover:text-white hover:bg-white/10'
+                        ? 'bg-white/20 text-white font-bold shadow-xs border border-white/20'
+                        : 'text-white/80 hover:text-white hover:bg-white/10 font-medium'
                     }`}
                   >
                     <Icon className="w-3.5 h-3.5" />
@@ -154,58 +154,48 @@ export default function Navbar() {
           {/* Right Action Widgets */}
           <div className="flex items-center gap-2 sm:gap-3">
             
-            {/* Section 2 Attendance Quick Action Navbar Widget */}
+            {/* Attendance Quick Action Buttons (Check In / Out of office) */}
             {user?.employeeId && (
-              <div className="hidden sm:flex items-center bg-black/25 px-2.5 py-1 rounded border border-white/15 text-xs">
+              <div className="hidden sm:flex items-center bg-black/20 p-1 rounded-md border border-white/15 text-xs gap-1">
                 <button
                   onClick={handleAttendanceToggle}
                   disabled={attStatus.loading}
                   title="Click to Check In or Check Out"
-                  className={`flex items-center gap-2 font-medium px-2 py-0.5 rounded transition-all ${
+                  className={`flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded transition-all ${
                     attStatus.checkedIn
-                      ? 'bg-[#00A09D] hover:bg-[#008b88] text-white shadow-xs'
-                      : 'bg-white/15 hover:bg-white/25 text-white border border-white/20'
+                      ? 'bg-[#00A09D] text-white shadow-xs'
+                      : 'bg-white/15 text-white/90 hover:bg-white/25'
                   }`}
                 >
-                  <span className={`w-2 h-2 rounded-full ${attStatus.checkedIn ? 'bg-teal-200 animate-pulse' : 'bg-slate-300'}`}></span>
-                  <span>
-                    {attStatus.loading 
-                      ? 'Updating...' 
-                      : attStatus.checkedIn 
-                      ? 'Check Out' 
-                      : (attStatus.hasCheckedOutToday || attStatus.workedHours > 0) 
-                      ? 'Check In Again' 
-                      : 'Check In'}
-                  </span>
+                  <span className={`w-2 h-2 rounded-full ${attStatus.checkedIn ? 'bg-emerald-300 animate-pulse' : 'bg-slate-300'}`}></span>
+                  <span>{attStatus.checkedIn ? 'Checked In' : 'Check In'}</span>
                 </button>
-                <div className="ml-2 pl-2 border-l border-white/20 text-slate-200 font-mono text-[11px] hidden md:block">
-                  {attStatus.checkedIn 
-                    ? `${attStatus.elapsedHours}h active` 
-                    : (attStatus.hasCheckedOutToday || attStatus.workedHours > 0)
-                    ? `Logged ${attStatus.workedHours}h today`
-                    : 'Out of office'}
+
+                <div className="px-2 py-1 text-[11px] font-medium text-white/80 flex items-center gap-1.5">
+                  <span className={`w-2 h-2 rounded-full ${!attStatus.checkedIn ? 'bg-slate-400' : 'bg-slate-500'}`}></span>
+                  <span>Out of office</span>
                 </div>
               </div>
             )}
 
-            {/* User Profile Pill (Direct Logged-In Identity) */}
+            {/* User Profile Pill (Identity Badge matching screenshot) */}
             {user && (
-              <div className="hidden sm:flex items-center gap-2 bg-white/10 border border-white/20 px-2.5 py-1 rounded text-xs">
+              <div className="hidden sm:flex items-center gap-2 bg-white/10 border border-white/20 px-2.5 py-1 rounded-md text-xs">
                 <div className="w-6 h-6 rounded-full bg-[#00A09D] text-white flex items-center justify-center font-bold text-[10px]">
                   {(user?.name || 'U').slice(0, 2).toUpperCase()}
                 </div>
-                <div className="flex flex-col text-left leading-tight">
-                  <span className="font-semibold text-white truncate max-w-[130px]">{user?.name}</span>
-                  <span className="text-[10px] text-teal-200 capitalize">{user?.role?.toLowerCase().replace(/_/g, ' ')}</span>
+                <div className="flex flex-col text-left leading-none">
+                  <span className="font-bold text-white text-xs">{user?.name}</span>
+                  <span className="text-[10px] text-teal-200 mt-0.5 capitalize">{user?.role?.toLowerCase().replace(/_/g, ' ')}</span>
                 </div>
               </div>
             )}
 
-            {/* Direct Logout button */}
+            {/* Logout button matching screenshot [-> Logout */}
             <button
               onClick={logout}
               title="Sign Out"
-              className="flex items-center gap-1.5 bg-white/10 hover:bg-white/20 border border-white/20 text-xs px-2.5 py-1.5 rounded font-medium text-white transition-colors"
+              className="flex items-center gap-1.5 bg-white/10 hover:bg-white/20 border border-white/20 text-xs px-2.5 py-1.5 rounded-md font-medium text-white transition-colors"
             >
               <LogOut className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Logout</span>
