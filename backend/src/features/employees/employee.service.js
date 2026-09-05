@@ -91,6 +91,19 @@ class EmployeeService {
       });
     }
 
+    // If initial contract details are provided, create active contract automatically
+    if (data.initialWage && data.salaryStructureId) {
+      const contractRepo = require('../contracts/contract.repository');
+      await contractRepo.create({
+        employeeId: created.id,
+        wage: parseFloat(data.initialWage),
+        salaryStructureId: parseInt(data.salaryStructureId, 10),
+        startDate: data.joiningDate ? new Date(data.joiningDate) : new Date(),
+        status: 'ACTIVE',
+        notes: data.contractNotes || 'Initial employment contract on onboarding',
+      });
+    }
+
     await auditService.log({
       userId: user.id,
       action: 'EMPLOYEE_CREATED',
@@ -116,7 +129,7 @@ class EmployeeService {
       action: 'EMPLOYEE_UPDATED',
       entityName: 'Employee',
       entityId: String(id),
-      previousValue: JSON.stringify({ name: current.name, status: current.status, wage: current.activeWage }),
+      previousValue: JSON.stringify({ name: current.name, status: current.status }),
       newValue: JSON.stringify({ name: updated.name, status: updated.status }),
     });
 
@@ -124,18 +137,37 @@ class EmployeeService {
   }
 
   async deleteEmployee(id, user) {
-    const current = await employeeRepository.findById(id);
+    const numId = parseInt(id, 10);
+    const current = await employeeRepository.findById(numId);
     if (!current) {
       throw { statusCode: 404, message: 'Employee not found.', code: 'EMPLOYEE_NOT_FOUND' };
     }
 
-    await employeeRepository.delete(id);
+    const payslipsCount = await prisma.payslip.count({ where: { employeeId: numId } });
+    if (payslipsCount > 0) {
+      const updated = await employeeRepository.update(numId, { status: 'TERMINATED' });
+      await auditService.log({
+        userId: user.id,
+        action: 'EMPLOYEE_TERMINATED',
+        entityName: 'Employee',
+        entityId: String(numId),
+        previousValue: JSON.stringify({ status: current.status }),
+        newValue: JSON.stringify({ status: 'TERMINATED' }),
+      });
+      return {
+        message: `Employee has ${payslipsCount} historical payslips. Status changed to TERMINATED to protect payroll audit integrity.`,
+        archived: true,
+        employee: updated,
+      };
+    }
+
+    await employeeRepository.delete(numId);
 
     await auditService.log({
       userId: user.id,
       action: 'EMPLOYEE_DELETED',
       entityName: 'Employee',
-      entityId: String(id),
+      entityId: String(numId),
       previousValue: JSON.stringify(current),
       newValue: null,
     });
