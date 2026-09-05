@@ -49,6 +49,8 @@ class ProfileRequestService {
       employeeRef: employee.employeeId,
       departmentName: employee.department?.name || 'General',
       currentData: {
+        name: employee.name || '',
+        email: employee.email || '',
         phone: employee.phone || '',
         bankName: employee.bankName || '',
         bankAccountNumber: employee.bankAccountNumber || '',
@@ -56,13 +58,15 @@ class ProfileRequestService {
         panNumber: employee.panNumber || '',
       },
       requestedChanges: {
-        phone: data.requestedChanges?.phone ?? employee.phone,
-        bankName: data.requestedChanges?.bankName ?? employee.bankName,
-        bankAccountNumber: data.requestedChanges?.bankAccountNumber ?? employee.bankAccountNumber,
-        bankIfscCode: data.requestedChanges?.bankIfscCode ?? employee.bankIfscCode,
-        panNumber: data.requestedChanges?.panNumber ?? employee.panNumber,
+        ...(data.requestedChanges?.name !== undefined && { name: data.requestedChanges.name }),
+        ...(data.requestedChanges?.email !== undefined && { email: data.requestedChanges.email }),
+        ...(data.requestedChanges?.phone !== undefined && { phone: data.requestedChanges.phone }),
+        ...(data.requestedChanges?.bankName !== undefined && { bankName: data.requestedChanges.bankName }),
+        ...(data.requestedChanges?.bankAccountNumber !== undefined && { bankAccountNumber: data.requestedChanges.bankAccountNumber }),
+        ...(data.requestedChanges?.bankIfscCode !== undefined && { bankIfscCode: data.requestedChanges.bankIfscCode }),
+        ...(data.requestedChanges?.panNumber !== undefined && { panNumber: data.requestedChanges.panNumber }),
       },
-      reason: data.reason || 'Employee requested personal/bank details update',
+      reason: data.reason || 'Employee requested profile details update',
       status: 'PENDING', // PENDING | APPROVED | REJECTED
       createdAt: new Date().toISOString(),
       reviewedAt: null,
@@ -87,14 +91,24 @@ class ProfileRequestService {
   }
 
   async getAllRequests(query, user) {
-    const requests = readRequests();
+    const rawRequests = readRequests();
+    const formatted = rawRequests.map(r => ({
+      ...r,
+      employee: {
+        id: r.employeeId,
+        employeeId: r.employeeRef,
+        name: r.employeeName,
+        department: { name: r.departmentName || 'General' },
+      },
+    }));
+
     if (user.role === 'EMPLOYEE') {
-      return requests.filter(r => r.employeeId === user.employeeId);
+      return formatted.filter(r => r.employeeId === user.employeeId);
     }
     if (query?.status) {
-      return requests.filter(r => r.status === query.status);
+      return formatted.filter(r => r.status === query.status);
     }
-    return requests;
+    return formatted;
   }
 
   async approveRequest(id, user) {
@@ -120,6 +134,22 @@ class ProfileRequestService {
 
     // Apply the changes to the employee database!
     await employeeService.updateEmployee(emp.id, targetReq.requestedChanges, user);
+
+    // If name or email changed, also keep associated User account in sync!
+    if (targetReq.requestedChanges.name || targetReq.requestedChanges.email) {
+      try {
+        const prisma = require('../../config/database');
+        const userSyncData = {};
+        if (targetReq.requestedChanges.name) userSyncData.name = targetReq.requestedChanges.name;
+        if (targetReq.requestedChanges.email) userSyncData.email = targetReq.requestedChanges.email.toLowerCase();
+        await prisma.user.updateMany({
+          where: { employeeId: emp.id },
+          data: userSyncData,
+        });
+      } catch (syncErr) {
+        console.warn('[ProfileRequestService] User account sync notice:', syncErr.message);
+      }
+    }
 
     targetReq.status = 'APPROVED';
     targetReq.employeeId = emp.id;

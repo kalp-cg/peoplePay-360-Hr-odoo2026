@@ -54,6 +54,19 @@ export default function TimeOff() {
     fetchData();
   }, [activeTab, employeeIdParam]);
 
+  function handleDateChange(field, val) {
+    const nextForm = { ...reqForm, [field]: val };
+    if (nextForm.startDate && nextForm.endDate) {
+      const d1 = new Date(nextForm.startDate);
+      const d2 = new Date(nextForm.endDate);
+      if (!isNaN(d1) && !isNaN(d2) && d2 >= d1) {
+        const diffDays = Math.max(1, Math.round((d2 - d1) / (1000 * 60 * 60 * 24)) + 1);
+        nextForm.durationDays = diffDays;
+      }
+    }
+    setReqForm(nextForm);
+  }
+
   async function fetchData() {
     setLoading(true);
     try {
@@ -70,6 +83,17 @@ export default function TimeOff() {
         const res = await api.get('/time-off/types');
         setTypes(res.data);
       }
+
+      // Always populate allocations for Employee balance cards
+      if (user?.role === 'EMPLOYEE' || activeTab === 'requests') {
+        try {
+          const allocRes = await api.get('/time-off/allocations', { params });
+          setAllocations(allocRes.data || []);
+        } catch (err) {
+          console.warn('Allocations fetch error:', err);
+        }
+      }
+
       // fetch types for dropdown
       const tRes = await api.get('/time-off/types');
       setTypes(tRes.data);
@@ -422,7 +446,7 @@ export default function TimeOff() {
                     type="date"
                     required
                     value={reqForm.startDate}
-                    onChange={(e) => setReqForm({ ...reqForm, startDate: e.target.value })}
+                    onChange={(e) => handleDateChange('startDate', e.target.value)}
                     className="w-full bg-slate-50 border border-slate-200 rounded px-3 py-1.5 text-xs focus:bg-white focus:outline-none focus:ring-1 focus:ring-[#714B67]"
                   />
                 </div>
@@ -432,7 +456,7 @@ export default function TimeOff() {
                     type="date"
                     required
                     value={reqForm.endDate}
-                    onChange={(e) => setReqForm({ ...reqForm, endDate: e.target.value })}
+                    onChange={(e) => handleDateChange('endDate', e.target.value)}
                     className="w-full bg-slate-50 border border-slate-200 rounded px-3 py-1.5 text-xs focus:bg-white focus:outline-none focus:ring-1 focus:ring-[#714B67]"
                   />
                 </div>

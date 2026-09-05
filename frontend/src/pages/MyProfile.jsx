@@ -20,6 +20,8 @@ export default function MyProfile() {
   const [feedback, setFeedback] = useState(null);
 
   const [form, setForm] = useState({
+    name: '',
+    email: '',
     phone: '',
     bankName: '',
     bankAccountNumber: '',
@@ -42,6 +44,8 @@ export default function MyProfile() {
         const fullDetail = await api.get(`/employees/${self.id}`);
         setEmployee(fullDetail.data);
         setForm({
+          name: fullDetail.data.name || '',
+          email: fullDetail.data.email || '',
           phone: fullDetail.data.phone || '',
           bankName: fullDetail.data.bankName || '',
           bankAccountNumber: fullDetail.data.bankAccountNumber || '',
@@ -72,19 +76,21 @@ export default function MyProfile() {
     try {
       const payload = {
         requestedChanges: {
-          phone: form.phone,
-          bankName: form.bankName,
-          bankAccountNumber: form.bankAccountNumber,
-          bankIfscCode: form.bankIfscCode,
-          panNumber: form.panNumber,
+          name: form.name?.trim() || employee?.name,
+          email: form.email?.trim() || employee?.email,
+          phone: form.phone?.trim() || employee?.phone,
+          bankName: form.bankName?.trim() || employee?.bankName,
+          bankAccountNumber: form.bankAccountNumber?.trim() || employee?.bankAccountNumber,
+          bankIfscCode: form.bankIfscCode?.trim() || employee?.bankIfscCode,
+          panNumber: form.panNumber?.trim() || employee?.panNumber,
         },
-        reason: form.reason || 'Personal information update requested by employee',
+        reason: form.reason || 'Personal and banking details update requested by employee',
       };
 
       await api.post('/employees/profile-change-requests', payload);
       setFeedback({
         type: 'success',
-        text: 'Your profile update request has been submitted to the HR Manager for approval! Once approved, your employee record will be automatically updated.',
+        text: 'Your profile update request has been submitted to the HR Manager for approval! Once approved, your employee record and user profile will be automatically updated.',
       });
       setShowEditModal(false);
       // Refresh requests
@@ -366,8 +372,8 @@ export default function MyProfile() {
       {/* REQUEST PROFILE UPDATE MODAL */}
       {showEditModal && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in">
-          <div className="bg-white border border-slate-200 rounded-lg shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
+          <div className="bg-white border border-slate-200 rounded-lg shadow-2xl max-w-xl w-full max-h-[92vh] overflow-y-auto">
+            <div className="p-4 border-b border-slate-200 flex items-center justify-between bg-slate-50 sticky top-0 z-10">
               <div className="flex items-center gap-2">
                 <Edit3 className="w-4 h-4 text-[#714B67]" />
                 <h3 className="font-bold text-sm text-[#2C3E50]">Request Profile Information Update</h3>
@@ -377,68 +383,114 @@ export default function MyProfile() {
               </button>
             </div>
 
-            <form onSubmit={handleSubmitRequest} className="p-6 space-y-4 text-xs">
-              <div className="p-3 bg-purple-50/50 rounded border border-purple-100 text-[#714B67] text-[11px] leading-relaxed">
-                Changes submitted here will be sent directly to the HR Manager's approval dashboard. Upon approval, your employee record and payroll routing will be automatically updated.
+            <form onSubmit={handleSubmitRequest} className="p-6 space-y-5 text-xs">
+              <div className="p-3 bg-purple-50/60 rounded border border-purple-100 text-[#714B67] text-[11px] leading-relaxed flex items-start gap-2">
+                <ShieldAlert className="w-4 h-4 shrink-0 text-[#714B67] mt-0.5" />
+                <span>
+                  Changes submitted here will be sent directly to the HR Manager's approval dashboard. Upon approval, your employee record, user account, and payroll routing will be automatically updated.
+                </span>
               </div>
 
-              <div>
-                <label className="block text-slate-700 font-semibold mb-1">Phone Number</label>
-                <input
-                  type="text"
-                  value={form.phone}
-                  onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                  placeholder="+91 98765 43210"
-                  className="w-full bg-slate-50 border border-slate-200 rounded px-3 py-2 text-xs font-mono"
-                />
-              </div>
+              {/* Section 1: Personal & Contact Information */}
+              <div className="space-y-3">
+                <h4 className="font-bold text-[#714B67] uppercase tracking-wider text-[11px] pb-1 border-b border-slate-100 flex items-center gap-1.5">
+                  <User className="w-3.5 h-3.5" />
+                  <span>Personal & Contact Information</span>
+                </h4>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-slate-700 font-semibold mb-1">Bank Name</label>
-                  <input
-                    type="text"
-                    value={form.bankName}
-                    onChange={(e) => setForm({ ...form, bankName: e.target.value })}
-                    placeholder="e.g., HDFC Bank"
-                    className="w-full bg-slate-50 border border-slate-200 rounded px-3 py-2 text-xs"
-                  />
-                </div>
-                <div>
-                  <label className="block text-slate-700 font-semibold mb-1">Bank Account Number</label>
-                  <input
-                    type="text"
-                    value={form.bankAccountNumber}
-                    onChange={(e) => setForm({ ...form, bankAccountNumber: e.target.value })}
-                    placeholder="e.g., 50100234567890"
-                    className="w-full bg-slate-50 border border-slate-200 rounded px-3 py-2 text-xs font-mono"
-                  />
-                </div>
-              </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-slate-700 font-semibold mb-1">Full Name *</label>
+                    <input
+                      type="text"
+                      required
+                      value={form.name}
+                      onChange={(e) => setForm({ ...form, name: e.target.value })}
+                      placeholder="e.g., Rahul Sharma"
+                      className="w-full bg-slate-50 border border-slate-200 rounded px-3 py-2 text-xs focus:bg-white focus:outline-none focus:ring-1 focus:ring-[#714B67]"
+                    />
+                  </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-slate-700 font-semibold mb-1">Bank IFSC Code</label>
-                  <input
-                    type="text"
-                    value={form.bankIfscCode}
-                    onChange={(e) => setForm({ ...form, bankIfscCode: e.target.value.toUpperCase() })}
-                    placeholder="HDFC0001234"
-                    className="w-full bg-slate-50 border border-slate-200 rounded px-3 py-2 text-xs font-mono uppercase"
-                  />
+                  <div>
+                    <label className="block text-slate-700 font-semibold mb-1">Official / Work Email *</label>
+                    <input
+                      type="email"
+                      required
+                      value={form.email}
+                      onChange={(e) => setForm({ ...form, email: e.target.value })}
+                      placeholder="rahul@peoplepay360.com"
+                      className="w-full bg-slate-50 border border-slate-200 rounded px-3 py-2 text-xs font-mono focus:bg-white focus:outline-none focus:ring-1 focus:ring-[#714B67]"
+                    />
+                  </div>
                 </div>
+
                 <div>
-                  <label className="block text-slate-700 font-semibold mb-1">Income Tax PAN Number</label>
+                  <label className="block text-slate-700 font-semibold mb-1">Contact Phone Number</label>
                   <input
                     type="text"
-                    value={form.panNumber}
-                    onChange={(e) => setForm({ ...form, panNumber: e.target.value.toUpperCase() })}
-                    placeholder="ABCDE1234F"
-                    className="w-full bg-slate-50 border border-slate-200 rounded px-3 py-2 text-xs font-mono uppercase"
+                    value={form.phone}
+                    onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                    placeholder="+91 98765 43210"
+                    className="w-full bg-slate-50 border border-slate-200 rounded px-3 py-2 text-xs font-mono focus:bg-white focus:outline-none focus:ring-1 focus:ring-[#714B67]"
                   />
                 </div>
               </div>
 
+              {/* Section 2: Banking & Statutory Details */}
+              <div className="space-y-3">
+                <h4 className="font-bold text-[#00A09D] uppercase tracking-wider text-[11px] pb-1 border-b border-slate-100 flex items-center gap-1.5">
+                  <CreditCard className="w-3.5 h-3.5" />
+                  <span>Banking & Statutory Details</span>
+                </h4>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-slate-700 font-semibold mb-1">Bank Name</label>
+                    <input
+                      type="text"
+                      value={form.bankName}
+                      onChange={(e) => setForm({ ...form, bankName: e.target.value })}
+                      placeholder="e.g., HDFC Bank / ICICI Bank"
+                      className="w-full bg-slate-50 border border-slate-200 rounded px-3 py-2 text-xs focus:bg-white focus:outline-none focus:ring-1 focus:ring-[#00A09D]"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-slate-700 font-semibold mb-1">Bank Account Number</label>
+                    <input
+                      type="text"
+                      value={form.bankAccountNumber}
+                      onChange={(e) => setForm({ ...form, bankAccountNumber: e.target.value })}
+                      placeholder="e.g., 50100234567890"
+                      className="w-full bg-slate-50 border border-slate-200 rounded px-3 py-2 text-xs font-mono focus:bg-white focus:outline-none focus:ring-1 focus:ring-[#00A09D]"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-slate-700 font-semibold mb-1">Bank IFSC Code</label>
+                    <input
+                      type="text"
+                      value={form.bankIfscCode}
+                      onChange={(e) => setForm({ ...form, bankIfscCode: e.target.value.toUpperCase() })}
+                      placeholder="HDFC0001234"
+                      className="w-full bg-slate-50 border border-slate-200 rounded px-3 py-2 text-xs font-mono uppercase focus:bg-white focus:outline-none focus:ring-1 focus:ring-[#00A09D]"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-slate-700 font-semibold mb-1">Income Tax PAN Number</label>
+                    <input
+                      type="text"
+                      value={form.panNumber}
+                      onChange={(e) => setForm({ ...form, panNumber: e.target.value.toUpperCase() })}
+                      placeholder="ABCDE1234F"
+                      className="w-full bg-slate-50 border border-slate-200 rounded px-3 py-2 text-xs font-mono uppercase focus:bg-white focus:outline-none focus:ring-1 focus:ring-[#00A09D]"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Section 3: Reason / Justification */}
               <div>
                 <label className="block text-slate-700 font-semibold mb-1">Reason / Justification for Update *</label>
                 <textarea
@@ -446,8 +498,8 @@ export default function MyProfile() {
                   rows={2}
                   value={form.reason}
                   onChange={(e) => setForm({ ...form, reason: e.target.value })}
-                  placeholder="e.g., Shifted primary salary account to HDFC Bank branch"
-                  className="w-full bg-slate-50 border border-slate-200 rounded p-2 text-xs"
+                  placeholder="e.g., Updated salary account to HDFC Bank and verified contact number"
+                  className="w-full bg-slate-50 border border-slate-200 rounded p-2.5 text-xs focus:bg-white focus:outline-none focus:ring-1 focus:ring-[#714B67]"
                 />
               </div>
 

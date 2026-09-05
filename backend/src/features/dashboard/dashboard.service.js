@@ -342,8 +342,8 @@ class DashboardService {
       }),
       prisma.attendance.findMany({
         where: { employeeId: empId },
-        orderBy: { date: 'desc' },
-        take: 5,
+        orderBy: [{ date: 'desc' }, { id: 'desc' }],
+        take: 10,
       }),
       attendanceService.getCurrentStatus(user),
       prisma.timeOffAllocation.findMany({

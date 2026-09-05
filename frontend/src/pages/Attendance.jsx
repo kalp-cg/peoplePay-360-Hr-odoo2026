@@ -275,10 +275,10 @@ export default function Attendance() {
     }
   };
 
-  // Employee aggregates
-  const totalWorkedHours = filtered.reduce((sum, r) => sum + (Number(r.workedHours) || 0), 0);
-  const presentDays = filtered.filter(r => r.status === 'PRESENT' || r.status === 'OVERTIME' || r.status === 'LATE' || r.status === 'HALF_DAY').length;
-  const onTimeDays = filtered.filter(r => r.status === 'PRESENT' || r.status === 'OVERTIME' || r.status === 'HALF_DAY').length;
+  // Employee aggregates (computed across all personal attendance logs)
+  const totalWorkedHours = records.reduce((sum, r) => sum + (Number(r.workedHours) || 0), 0);
+  const presentDays = records.filter(r => ['PRESENT', 'OVERTIME', 'LATE', 'HALF_DAY', 'CORRECTED'].includes(r.status)).length;
+  const onTimeDays = records.filter(r => ['PRESENT', 'OVERTIME', 'HALF_DAY', 'CORRECTED'].includes(r.status)).length;
   const onTimePercent = presentDays > 0 ? Math.round((onTimeDays / presentDays) * 100) : 100;
 
   return (
