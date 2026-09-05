@@ -50,6 +50,46 @@ class EmployeeController {
       next(err);
     }
   }
+
+  async createProfileRequest(req, res, next) {
+    try {
+      const profileRequestService = require('./profile-request.service');
+      const created = await profileRequestService.createRequest(req.body, req.user);
+      return sendSuccess(res, created, 201, 'Profile change request submitted for HR approval.');
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  async getProfileRequests(req, res, next) {
+    try {
+      const profileRequestService = require('./profile-request.service');
+      const requests = await profileRequestService.getAllRequests(req.query, req.user);
+      return sendSuccess(res, requests);
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  async approveProfileRequest(req, res, next) {
+    try {
+      const profileRequestService = require('./profile-request.service');
+      const approved = await profileRequestService.approveRequest(req.params.requestId, req.user);
+      return sendSuccess(res, approved, 200, 'Profile change request approved and employee record updated.');
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  async rejectProfileRequest(req, res, next) {
+    try {
+      const profileRequestService = require('./profile-request.service');
+      const rejected = await profileRequestService.rejectRequest(req.params.requestId, req.body.reason, req.user);
+      return sendSuccess(res, rejected, 200, 'Profile change request rejected.');
+    } catch (err) {
+      next(err);
+    }
+  }
 }
 
 module.exports = new EmployeeController();

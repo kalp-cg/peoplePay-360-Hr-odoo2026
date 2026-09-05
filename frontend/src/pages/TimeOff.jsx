@@ -114,13 +114,14 @@ export default function TimeOff() {
   }
 
   const isHR = user?.role === 'ADMIN' || user?.role === 'HR_MANAGER';
+  const isEmployee = user?.role === 'EMPLOYEE';
 
   return (
     <div className="min-h-screen bg-[#F8F9FA] pb-12">
       <ControlPanel
-        title="Time Off & Leaves"
-        subtitle="Leave Requests, Allocation Ledger & Approvals"
-        breadcrumbs={[{ label: 'Time Off' }]}
+        title={isEmployee ? 'My Time Off & Leaves' : 'Time Off & Leaves'}
+        subtitle={isEmployee ? 'Personal Leave Balances, Applications & Approval Status' : 'Leave Requests, Allocation Ledger & Approvals'}
+        breadcrumbs={[{ label: 'Dashboard', path: '/' }, { label: 'Time Off' }]}
         actions={
           <div className="flex items-center gap-2">
             <button
@@ -145,6 +146,23 @@ export default function TimeOff() {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 space-y-4">
         
+        {/* Employee Balance Summary Cards */}
+        {isEmployee && allocations.length > 0 && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+            {allocations.map(alloc => (
+              <div key={alloc.id} className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
+                <div className="text-xs font-semibold text-slate-500 uppercase">{alloc.timeOffType?.name || 'Leave'}</div>
+                <div className="text-2xl font-extrabold text-[#714B67] mt-1 font-mono">
+                  {alloc.remainingDays ?? (alloc.allocatedDays - (alloc.takenDays || 0))} Days
+                </div>
+                <div className="text-[11px] text-slate-500 mt-0.5">
+                  Allocated: {alloc.allocatedDays}d • Taken: {alloc.takenDays || 0}d
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
         {/* Navigation Tabs */}
         <div className="bg-white border border-slate-200 rounded-lg px-4 flex gap-6 text-xs font-semibold shadow-sm">
           <button
@@ -156,7 +174,7 @@ export default function TimeOff() {
             }`}
           >
             <Clock className="w-4 h-4" />
-            <span>Time Off Requests</span>
+            <span>{isEmployee ? 'My Leave Requests' : 'Time Off Requests'}</span>
           </button>
           <button
             onClick={() => setActiveTab('allocations')}
@@ -190,22 +208,24 @@ export default function TimeOff() {
             <table className="w-full text-left text-xs">
               <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold uppercase tracking-wider text-[11px]">
                 <tr>
-                  <th className="px-4 py-3">Employee</th>
+                  {!isEmployee && <th className="px-4 py-3">Employee</th>}
                   <th className="px-4 py-3">Leave Type</th>
                   <th className="px-4 py-3">Dates</th>
                   <th className="px-4 py-3">Duration</th>
                   <th className="px-4 py-3">Reason</th>
                   <th className="px-4 py-3">Status</th>
-                  <th className="px-4 py-3 text-right">Actions</th>
+                  {isHR && <th className="px-4 py-3 text-right">Actions</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-slate-700">
                 {requests.map((req) => (
                   <tr key={req.id} className="hover:bg-slate-50 transition-colors">
-                    <td className="px-4 py-3 font-medium text-slate-900">
-                      {req.employee?.name}
-                      <span className="ml-1 text-[11px] text-slate-400 font-mono">({req.employee?.employeeId})</span>
-                    </td>
+                    {!isEmployee && (
+                      <td className="px-4 py-3 font-medium text-slate-900">
+                        {req.employee?.name}
+                        <span className="ml-1 text-[11px] text-slate-400 font-mono">({req.employee?.employeeId})</span>
+                      </td>
+                    )}
                     <td className="px-4 py-3 font-medium text-[#714B67]">{req.timeOffType?.name}</td>
                     <td className="px-4 py-3 font-mono">
                       {new Date(req.startDate).toLocaleDateString()} - {new Date(req.endDate).toLocaleDateString()}
@@ -260,7 +280,7 @@ export default function TimeOff() {
             <table className="w-full text-left text-xs">
               <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold uppercase tracking-wider text-[11px]">
                 <tr>
-                  <th className="px-4 py-3">Employee</th>
+                  {!isEmployee && <th className="px-4 py-3">Employee</th>}
                   <th className="px-4 py-3">Leave Type</th>
                   <th className="px-4 py-3 font-mono">Allocated</th>
                   <th className="px-4 py-3 font-mono">Taken / Approved</th>
@@ -271,10 +291,12 @@ export default function TimeOff() {
               <tbody className="divide-y divide-slate-100 text-slate-700">
                 {allocations.map((a) => (
                   <tr key={a.id} className="hover:bg-slate-50 transition-colors">
-                    <td className="px-4 py-3 font-medium text-slate-900">
-                      {a.employee?.name}
-                      <span className="ml-1 text-[11px] text-slate-400 font-mono">({a.employee?.employeeId})</span>
-                    </td>
+                    {!isEmployee && (
+                      <td className="px-4 py-3 font-medium text-slate-900">
+                        {a.employee?.name}
+                        <span className="ml-1 text-[11px] text-slate-400 font-mono">({a.employee?.employeeId})</span>
+                      </td>
+                    )}
                     <td className="px-4 py-3 font-medium text-[#714B67]">{a.timeOffType?.name}</td>
                     <td className="px-4 py-3 font-mono text-slate-600">{a.allocatedDays} Days</td>
                     <td className="px-4 py-3 font-mono font-semibold text-amber-700">{a.takenDays} Days</td>

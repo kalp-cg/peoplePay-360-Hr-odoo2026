@@ -15,6 +15,7 @@ import SalaryConfig from './pages/SalaryConfig';
 import UsersPage from './pages/UsersPage';
 import AuditLogsPage from './pages/AuditLogsPage';
 import LoginPage from './pages/LoginPage';
+import MyProfile from './pages/MyProfile';
 
 function ProtectedLayout({ children }) {
   const { user, loading } = useAuth();
@@ -71,6 +72,24 @@ export default function App() {
         element={
           <ProtectedLayout>
             <Employees />
+          </ProtectedLayout>
+        }
+      />
+
+      <Route
+        path="/my-profile"
+        element={
+          <ProtectedLayout>
+            <MyProfile />
+          </ProtectedLayout>
+        }
+      />
+
+      <Route
+        path="/my-profile/:id"
+        element={
+          <ProtectedLayout>
+            <MyProfile />
           </ProtectedLayout>
         }
       />

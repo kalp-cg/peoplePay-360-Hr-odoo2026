@@ -35,7 +35,7 @@ echo    Employee (Rahul):  rahul@peoplepay360.com       / Rahul@123
 echo ============================================================
 
 cd /d "%~dp0backend"
-start "PeoplePay360 - Backend API (5000)" cmd /k "npm run start"
+start "PeoplePay360 - Backend API (5000)" cmd /k "npm run dev"
 
 cd /d "%~dp0frontend"
 start "PeoplePay360 - Frontend (5173)" cmd /k "npm run dev -- --host 0.0.0.0 --port 5173"

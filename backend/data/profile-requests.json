@@ -1,0 +1,30 @@
+[
+  {
+    "id": 1788601571752,
+    "employeeId": 2,
+    "employeeName": "Rahul Sharma",
+    "employeeRef": "EMP001",
+    "departmentName": "Engineering",
+    "currentData": {
+      "phone": "+91 98123 45678",
+      "bankName": "State Bank of India",
+      "bankAccountNumber": "987654321012",
+      "bankIfscCode": "SBIN0005678",
+      "panNumber": "RHULS1234K"
+    },
+    "requestedChanges": {
+      "phone": "+91 9988776655",
+      "bankName": "HDFC Bank Ltd",
+      "bankAccountNumber": "50100998877665",
+      "bankIfscCode": "HDFC0004321",
+      "panNumber": "ABCDE9999Z"
+    },
+    "reason": "Updated primary salary account and phone number",
+    "status": "APPROVED",
+    "createdAt": "2026-09-05T09:46:11.752Z",
+    "reviewedAt": "2026-09-05T09:46:23.143Z",
+    "reviewedById": 2,
+    "reviewedByName": "Kavita Deshmukh",
+    "reviewNotes": "Approved by HR Manager"
+  }
+]

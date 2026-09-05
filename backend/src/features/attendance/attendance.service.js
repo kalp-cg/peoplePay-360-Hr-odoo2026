@@ -6,7 +6,10 @@ function calculateWorkedHours(checkIn, checkOut, breakHours = 1.0) {
   const inMs = new Date(checkIn).getTime();
   const outMs = new Date(checkOut).getTime();
   const rawHours = (outMs - inMs) / (1000 * 60 * 60);
-  return Math.max(0, Math.round((rawHours - breakHours) * 100) / 100);
+  if (rawHours <= 0) return 0;
+  // Deduct meal break only if worked 5 or more hours
+  const actualBreak = rawHours >= 5.0 ? breakHours : 0;
+  return Math.max(0.01, Math.round((rawHours - actualBreak) * 100) / 100);
 }
 
 class AttendanceService {
@@ -29,7 +32,6 @@ class AttendanceService {
     }
 
     const date = data.date ? new Date(data.date) : new Date();
-    // Normalize date to midnight UTC/local
     date.setUTCHours(0, 0, 0, 0);
 
     const existing = await attendanceRepository.findByEmployeeAndDate(empId, date);
@@ -57,7 +59,6 @@ class AttendanceService {
 
     // New check-in
     const checkIn = data.checkIn ? new Date(data.checkIn) : new Date();
-    // Check if late (e.g., after 09:30)
     const hours = checkIn.getHours();
     const minutes = checkIn.getMinutes();
     let status = 'INCOMPLETE';
@@ -128,23 +129,25 @@ class AttendanceService {
         hasEmployeeProfile: true,
         checkedIn: false,
         checkInTime: null,
+        checkOutTime: null,
         elapsedHours: 0,
+        status: 'OUT_OF_OFFICE',
         record: null,
       };
     }
 
-    const isCheckedOut = Boolean(record.checkOut);
+    const isCheckedIn = Boolean(record.checkIn && !record.checkOut);
     const now = new Date();
     const inTime = new Date(record.checkIn);
     const diffHours = Math.max(0, Math.round(((now.getTime() - inTime.getTime()) / (1000 * 60 * 60)) * 100) / 100);
 
     return {
       hasEmployeeProfile: true,
-      checkedIn: !isCheckedOut,
+      checkedIn: isCheckedIn,
       checkInTime: record.checkIn,
       checkOutTime: record.checkOut,
-      elapsedHours: isCheckedOut ? record.workedHours : diffHours,
-      status: record.status,
+      elapsedHours: isCheckedIn ? diffHours : (record.workedHours || 0),
+      status: isCheckedIn ? record.status : 'CHECKED_OUT',
       record,
     };
   }
@@ -156,15 +159,36 @@ class AttendanceService {
 
     const currentStatus = await this.getCurrentStatus(user);
 
-    if (!currentStatus.checkedIn && !currentStatus.record?.checkOut) {
-      // Perform Check-in
-      return this.recordAttendance({ employeeId: user.employeeId, checkIn: new Date() }, user);
-    } else if (currentStatus.checkedIn) {
-      // Perform Check-out
-      return this.recordAttendance({ employeeId: user.employeeId, checkOut: new Date() }, user);
+    if (!currentStatus.checkedIn) {
+      // User is not checked in -> Trigger Check In!
+      if (currentStatus.record) {
+        // Resume session: clear checkout
+        return attendanceRepository.update(currentStatus.record.id, {
+          checkOut: null,
+          status: currentStatus.record.status === 'LATE' ? 'LATE' : 'PRESENT',
+        });
+      } else {
+        // First check in of the day
+        return this.recordAttendance({ employeeId: user.employeeId, checkIn: new Date() }, user);
+      }
     } else {
-      // Already completed check-out today, can re-open or update
-      return this.recordAttendance({ employeeId: user.employeeId, checkOut: new Date() }, user);
+      // User is currently checked in -> Trigger Check Out!
+      const checkOutTime = new Date();
+      const existing = currentStatus.record;
+      const breakHours = existing?.breakHours || 1.0;
+      const worked = calculateWorkedHours(existing.checkIn, checkOutTime, breakHours);
+      let status = existing.status;
+      if (worked >= 9.0) {
+        status = 'OVERTIME';
+      } else if (worked >= 7.0 && status !== 'LATE') {
+        status = 'PRESENT';
+      }
+
+      return attendanceRepository.update(existing.id, {
+        checkOut: checkOutTime,
+        workedHours: worked,
+        status,
+      });
     }
   }
 }
