@@ -2,6 +2,9 @@ const employeeRepository = require('./employee.repository');
 const auditService = require('../audit/audit.service');
 const prisma = require('../../config/database');
 
+const employeeCache = new Map();
+const CACHE_TTL_MS = 6000;
+
 class EmployeeService {
   async getAllEmployees(query, user) {
     // If employee role, restrict to viewing self if requested
@@ -10,30 +13,54 @@ class EmployeeService {
       return emp ? [emp] : [];
     }
 
+    const cacheKey = `emp_${JSON.stringify(query || {})}_${user.role}_${user.employeeId || ''}`;
+    const cached = employeeCache.get(cacheKey);
+    if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
+      return cached.data;
+    }
+
     const employees = await employeeRepository.findAll(query);
 
-    // Enhance with live Smart Stat indicators for Odoo list/kanban view
-    const enriched = await Promise.all(
-      employees.map(async (emp) => {
-        const activeContract = await prisma.contract.findFirst({
-          where: { employeeId: emp.id, status: 'ACTIVE' },
-          select: { id: true, wage: true },
-        });
+    if (employees.length === 0) return [];
 
-        const allocations = await prisma.timeOffAllocation.aggregate({
-          where: { employeeId: emp.id },
-          _sum: { remainingDays: true, allocatedDays: true },
-        });
+    // Batch fetch active contracts and leave allocations in 2 queries instead of 2 * N queries
+    const empIds = employees.map((e) => e.id);
+    const [activeContracts, allocationsGrouped] = await Promise.all([
+      prisma.contract.findMany({
+        where: { employeeId: { in: empIds }, status: 'ACTIVE' },
+        select: { employeeId: true, wage: true },
+      }),
+      prisma.timeOffAllocation.groupBy({
+        by: ['employeeId'],
+        where: { employeeId: { in: empIds } },
+        _sum: { remainingDays: true, allocatedDays: true },
+      }),
+    ]);
 
-        return {
-          ...emp,
-          activeWage: activeContract ? activeContract.wage : 0,
-          totalRemainingLeaves: allocations._sum.remainingDays || 0,
-          totalAllocatedLeaves: allocations._sum.allocatedDays || 0,
-        };
-      })
-    );
+    const contractMap = new Map();
+    for (const c of activeContracts) {
+      if (!contractMap.has(c.employeeId)) contractMap.set(c.employeeId, c.wage);
+    }
 
+    const allocMap = new Map();
+    for (const a of allocationsGrouped) {
+      allocMap.set(a.employeeId, {
+        remaining: a._sum?.remainingDays || 0,
+        allocated: a._sum?.allocatedDays || 0,
+      });
+    }
+
+    const enriched = employees.map((emp) => {
+      const alloc = allocMap.get(emp.id) || { remaining: 0, allocated: 0 };
+      return {
+        ...emp,
+        activeWage: contractMap.get(emp.id) || 0,
+        totalRemainingLeaves: alloc.remaining,
+        totalAllocatedLeaves: alloc.allocated,
+      };
+    });
+
+    employeeCache.set(cacheKey, { timestamp: Date.now(), data: enriched });
     return enriched;
   }
 
@@ -113,6 +140,7 @@ class EmployeeService {
       newValue: JSON.stringify(created),
     });
 
+    employeeCache.clear();
     return created;
   }
 
@@ -133,6 +161,7 @@ class EmployeeService {
       newValue: JSON.stringify({ name: updated.name, status: updated.status }),
     });
 
+    employeeCache.clear();
     return updated;
   }
 
@@ -154,6 +183,7 @@ class EmployeeService {
         previousValue: JSON.stringify({ status: current.status }),
         newValue: JSON.stringify({ status: 'TERMINATED' }),
       });
+      employeeCache.clear();
       return {
         message: `Employee has ${payslipsCount} historical payslips. Status changed to TERMINATED to protect payroll audit integrity.`,
         archived: true,

@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const employeeService = require('./employee.service');
+const employeeRepository = require('./employee.repository');
 const auditService = require('../audit/audit.service');
 
 const DATA_DIR = path.join(__dirname, '../../../data');
@@ -108,10 +109,20 @@ class ProfileRequestService {
       throw { statusCode: 400, message: `Request is already ${targetReq.status}.`, code: 'INVALID_STATUS' };
     }
 
+    // Resolve employee: first by targetReq.employeeId, or fallback to targetReq.employeeRef ('EMP001')
+    let emp = await employeeRepository.findById(targetReq.employeeId);
+    if (!emp && targetReq.employeeRef) {
+      emp = await employeeRepository.findByEmployeeId(targetReq.employeeRef);
+    }
+    if (!emp) {
+      throw { statusCode: 404, message: 'Employee associated with this request not found.', code: 'EMPLOYEE_NOT_FOUND' };
+    }
+
     // Apply the changes to the employee database!
-    await employeeService.updateEmployee(targetReq.employeeId, targetReq.requestedChanges, user);
+    await employeeService.updateEmployee(emp.id, targetReq.requestedChanges, user);
 
     targetReq.status = 'APPROVED';
+    targetReq.employeeId = emp.id;
     targetReq.reviewedAt = new Date().toISOString();
     targetReq.reviewedById = user.id;
     targetReq.reviewedByName = user.name;
@@ -124,7 +135,7 @@ class ProfileRequestService {
       userId: user.id,
       action: 'PROFILE_CHANGE_REQUEST_APPROVED',
       entityName: 'Employee',
-      entityId: String(targetReq.employeeId),
+      entityId: String(emp.id),
       previousValue: JSON.stringify(targetReq.currentData),
       newValue: JSON.stringify(targetReq.requestedChanges),
     });
