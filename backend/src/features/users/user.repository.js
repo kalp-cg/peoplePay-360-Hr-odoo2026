@@ -1,8 +1,9 @@
 const prisma = require('../../config/database');
 const bcrypt = require('bcryptjs');
+const { paginate, paginateResult } = require('../../utils/paginate');
 
 class UserRepository {
-  async findAll({ search, role } = {}) {
+  async findAll({ search, role, page, limit } = {}) {
     const where = {};
     if (search) {
       where.OR = [
@@ -12,28 +13,37 @@ class UserRepository {
     }
     if (role) where.role = role;
 
-    return prisma.user.findMany({
-      where,
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        role: true,
-        employeeId: true,
-        employee: {
-          select: {
-            id: true,
-            employeeId: true,
-            name: true,
-            managerId: true,
-            department: { select: { id: true, name: true } },
-            jobPosition: { select: { id: true, title: true } },
+    const { page: p, limit: l, skip } = paginate({ page, limit: limit || 50 });
+
+    const [data, total] = await Promise.all([
+      prisma.user.findMany({
+        where,
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          role: true,
+          employeeId: true,
+          employee: {
+            select: {
+              id: true,
+              employeeId: true,
+              name: true,
+              managerId: true,
+              department: { select: { id: true, name: true } },
+              jobPosition: { select: { id: true, title: true } },
+            },
           },
+          createdAt: true,
         },
-        createdAt: true,
-      },
-      orderBy: { id: 'asc' },
-    });
+        orderBy: { id: 'asc' },
+        skip,
+        take: l,
+      }),
+      prisma.user.count({ where }),
+    ]);
+
+    return paginateResult(data, total, p, l);
   }
 
   async findById(id) {

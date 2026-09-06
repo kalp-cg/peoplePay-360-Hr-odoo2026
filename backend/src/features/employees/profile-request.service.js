@@ -105,10 +105,10 @@ class ProfileRequestService {
     let result = formatted;
     if (user.role === 'EMPLOYEE') {
       result = result.filter(r => r.employeeId === user.employeeId);
-    } else if (user && user.role === 'HR_MANAGER' && query?.scope !== 'all') {
+    } else if (user && user.role === 'HR_MANAGER' && query?.scope === 'subordinates') {
       const employeeService = require('./employee.service');
       const subIds = await employeeService.getSubordinateIdsForUser(user);
-      if (subIds !== null) {
+      if (subIds !== null && subIds.length > 0) {
         result = result.filter(r => subIds.includes(r.employeeId));
       }
     }

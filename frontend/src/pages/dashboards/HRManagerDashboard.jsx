@@ -35,8 +35,15 @@ export default function HRManagerDashboard() {
         api.get('/employees/profile-change-requests', { params: { status: 'PENDING' } }),
       ]);
       if (dashRes.status === 'fulfilled') setDashboardData(dashRes.value.data);
-      if (leavesRes.status === 'fulfilled') setPendingLeaves((leavesRes.value.data || []).filter(l => l.status === 'PENDING'));
-      if (reqsRes.status === 'fulfilled') setProfileRequests(reqsRes.value.data || []);
+      if (leavesRes.status === 'fulfilled') {
+        const raw = leavesRes.value.data?.data || leavesRes.value.data || [];
+        const arr = Array.isArray(raw) ? raw : [];
+        setPendingLeaves(arr.filter(l => l.status === 'PENDING'));
+      }
+      if (reqsRes.status === 'fulfilled') {
+        const rawReqs = reqsRes.value.data?.data || reqsRes.value.data || [];
+        setProfileRequests(Array.isArray(rawReqs) ? rawReqs : []);
+      }
     } catch (err) {
       console.error('Failed to load HR Dashboard:', err);
     } finally {

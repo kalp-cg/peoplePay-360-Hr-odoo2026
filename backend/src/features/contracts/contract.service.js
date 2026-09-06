@@ -5,10 +5,12 @@ const prisma = require('../../config/database');
 class ContractService {
   async getAllContracts(query, user) {
     const q = { ...query };
-    if (user && !['ADMIN', 'HR_PAYROLL_MANAGER', 'HR_PAYROLL_USER'].includes(user.role) && q.scope !== 'all') {
+    if (user && user.role === 'EMPLOYEE' && user.employeeId) {
+      q.employeeId = user.employeeId;
+    } else if (user && q.scope === 'subordinates') {
       const employeeService = require('../employees/employee.service');
       const subIds = await employeeService.getSubordinateIdsForUser(user);
-      if (subIds !== null) {
+      if (subIds !== null && subIds.length > 0) {
         q.subordinateIds = subIds;
       }
     }

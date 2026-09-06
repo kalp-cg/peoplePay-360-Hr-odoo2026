@@ -88,10 +88,10 @@ class AttendanceService {
     const q = { ...query };
     if (user.role === 'EMPLOYEE' && user.employeeId) {
       q.employeeId = user.employeeId;
-    } else if (user && user.role === 'HR_MANAGER' && q.scope !== 'all') {
+    } else if (user && user.role === 'HR_MANAGER' && q.scope === 'subordinates') {
       const employeeService = require('../employees/employee.service');
       const subIds = await employeeService.getSubordinateIdsForUser(user);
-      if (subIds !== null) {
+      if (subIds !== null && subIds.length > 0) {
         q.subordinateIds = subIds;
       }
     }

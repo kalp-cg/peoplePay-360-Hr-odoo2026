@@ -1,7 +1,8 @@
 const prisma = require('../../config/database');
+const { paginate, paginateResult } = require('../../utils/paginate');
 
 class AttendanceRepository {
-  async findAll({ employeeId, startDate, endDate, status, search, subordinateIds }) {
+  async findAll({ employeeId, startDate, endDate, status, search, subordinateIds, page, limit } = {}) {
     const where = {};
     if (employeeId) where.employeeId = parseInt(employeeId, 10);
     if (status) where.status = status;
@@ -22,24 +23,33 @@ class AttendanceRepository {
       ];
     }
 
-    return prisma.attendance.findMany({
-      where,
-      include: {
-        employee: {
-          select: {
-            id: true,
-            employeeId: true,
-            name: true,
-            email: true,
-            department: { select: { id: true, name: true } },
+    const { page: p, limit: l, skip } = paginate({ page, limit });
+
+    const [data, total] = await Promise.all([
+      prisma.attendance.findMany({
+        where,
+        include: {
+          employee: {
+            select: {
+              id: true,
+              employeeId: true,
+              name: true,
+              email: true,
+              department: { select: { id: true, name: true } },
+            },
+          },
+          correctedBy: {
+            select: { id: true, name: true, email: true },
           },
         },
-        correctedBy: {
-          select: { id: true, name: true, email: true },
-        },
-      },
-      orderBy: [{ date: 'desc' }, { id: 'desc' }],
-    });
+        orderBy: [{ date: 'desc' }, { id: 'desc' }],
+        skip,
+        take: l,
+      }),
+      prisma.attendance.count({ where }),
+    ]);
+
+    return paginateResult(data, total, p, l);
   }
 
   async findOpenRecord(employeeId) {

@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import api from '../api/client';
 import ControlPanel from '../components/ControlPanel';
+import Pagination from '../components/Pagination';
 import { useAuth } from '../context/AuthContext';
 import { formatDateDMY } from '../utils/formatters';
 
@@ -19,6 +20,7 @@ export default function Attendance() {
   const canManagePolicy = user?.role === 'ADMIN';
 
   const [records, setRecords] = useState([]);
+  const [pagination, setPagination] = useState({ total: 0, page: 1, limit: 25, totalPages: 1 });
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
@@ -105,7 +107,7 @@ export default function Attendance() {
   // Re-fetch with backend search query on debounced search input
   useEffect(() => {
     const debounce = setTimeout(() => {
-      fetchAttendance();
+      fetchAttendance(1);
     }, 300);
     return () => clearTimeout(debounce);
   }, [search]);
@@ -147,15 +149,19 @@ export default function Attendance() {
     }
   }
 
-  async function fetchAttendance() {
+  async function fetchAttendance(page = pagination.page) {
     try {
       const params = {
         status: statusFilter || undefined,
         employeeId: employeeIdParam || undefined,
         search: search?.trim() || undefined,
+        page,
+        limit: 25,
       };
       const res = await api.get('/attendance', { params });
-      setRecords(res.data || []);
+      const envelope = res.data;
+      setRecords(envelope.data ?? []);
+      setPagination({ total: envelope.total, page: envelope.page, limit: envelope.limit, totalPages: envelope.totalPages });
     } catch (err) {
       console.error(err);
     } finally {
@@ -239,22 +245,8 @@ export default function Attendance() {
     }
   }
 
-  const filtered = records.filter((r) => {
-    const q = (search || '').trim().toLowerCase();
-    if (!q) return true;
-    const empName = (r.employee?.name || '').toLowerCase();
-    const empCode = (r.employee?.employeeId || '').toLowerCase();
-    const empEmail = (r.employee?.email || '').toLowerCase();
-    const deptName = (r.employee?.department?.name || '').toLowerCase();
-    const status = (r.status || '').toLowerCase();
-    return (
-      empName.includes(q) ||
-      empCode.includes(q) ||
-      empEmail.includes(q) ||
-      deptName.includes(q) ||
-      status.includes(q)
-    );
-  });
+  // Records are already filtered server-side by search + status; use directly.
+  const filtered = records;
 
   const getStatusBadge = (status) => {
     switch (status) {
@@ -415,9 +407,13 @@ export default function Attendance() {
                 </button>
               ))}
             </div>
-            <span className="text-xs text-slate-500 font-medium">
-              Showing {filtered.length} entries
-            </span>
+            <Pagination
+              page={pagination.page}
+              totalPages={pagination.totalPages}
+              total={pagination.total}
+              limit={pagination.limit}
+              onPageChange={(p) => fetchAttendance(p)}
+            />
           </div>
 
           <div className="overflow-x-auto">

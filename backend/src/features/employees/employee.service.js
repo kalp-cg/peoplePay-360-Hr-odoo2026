@@ -10,13 +10,13 @@ class EmployeeService {
     // If employee role, restrict to viewing self if requested
     if (user.role === 'EMPLOYEE' && user.employeeId) {
       const emp = await employeeRepository.findById(user.employeeId);
-      return emp ? [emp] : [];
+      return { data: emp ? [emp] : [], total: emp ? 1 : 0, page: 1, limit: 25, totalPages: 1 };
     }
 
     const q = { ...query };
-    if (user && user.role === 'HR_MANAGER' && q.scope !== 'all') {
+    if (user && user.role === 'HR_MANAGER' && q.scope === 'subordinates') {
       const subIds = await this.getSubordinateIdsForUser(user);
-      if (subIds !== null) {
+      if (subIds !== null && subIds.length > 0) {
         q.subordinateIds = subIds;
       }
     }
@@ -27,9 +27,12 @@ class EmployeeService {
       return cached.data;
     }
 
-    const employees = await employeeRepository.findAll(q);
+    const result = await employeeRepository.findAll(q);
+    const employees = result.data;
 
-    if (employees.length === 0) return [];
+    if (employees.length === 0) {
+      return { ...result, data: [] };
+    }
 
     // Batch fetch active contracts and leave allocations in 2 queries instead of 2 * N queries
     const empIds = employees.map((e) => e.id);
@@ -68,8 +71,9 @@ class EmployeeService {
       };
     });
 
-    employeeCache.set(cacheKey, { timestamp: Date.now(), data: enriched });
-    return enriched;
+    const enrichedResult = { ...result, data: enriched };
+    employeeCache.set(cacheKey, { timestamp: Date.now(), data: enrichedResult });
+    return enrichedResult;
   }
 
   async getEmployeeById(id, user) {

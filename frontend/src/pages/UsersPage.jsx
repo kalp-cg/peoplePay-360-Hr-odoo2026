@@ -6,7 +6,9 @@ import {
 } from 'lucide-react';
 import api from '../api/client';
 import ControlPanel from '../components/ControlPanel';
+import Pagination from '../components/Pagination';
 import { useAuth } from '../context/AuthContext';
+import { useDebounce } from '../hooks/useDebounce';
 
 // ─── Role metadata ────────────────────────────────────────────────────────────
 const ROLE_META = {
@@ -69,8 +71,10 @@ const EMPTY_FORM = {
 export default function UsersPage() {
   const { user: currentUser } = useAuth();
   const [users, setUsers] = useState([]);
+  const [pagination, setPagination] = useState({ total: 0, page: 1, limit: 50, totalPages: 1 });
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const debouncedSearch = useDebounce(searchTerm, 300);
 
   // Modal state
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -88,13 +92,17 @@ export default function UsersPage() {
     (jp) => !form.departmentId || jp.departmentId === parseInt(form.departmentId, 10)
   ) ?? [];
 
-  useEffect(() => { fetchUsers(); }, []);
+  useEffect(() => { fetchUsers(1); }, [debouncedSearch]);
 
-  async function fetchUsers() {
+  async function fetchUsers(page = pagination.page) {
     setLoading(true);
     try {
-      const res = await api.get('/users');
-      setUsers(res.data);
+      const params = { page, limit: 50 };
+      if (debouncedSearch.trim()) params.search = debouncedSearch.trim();
+      const res = await api.get('/users', { params });
+      const envelope = res.data;
+      setUsers(envelope.data ?? []);
+      setPagination({ total: envelope.total, page: envelope.page, limit: envelope.limit, totalPages: envelope.totalPages });
     } catch (err) {
       console.error('Failed to load users:', err);
     } finally {
@@ -233,21 +241,14 @@ export default function UsersPage() {
     if (!window.confirm('Delete this user? Their employee profile will remain intact.')) return;
     try {
       await api.delete(`/users/${id}`);
-      await fetchUsers();
+      await fetchUsers(1);
     } catch (err) {
       alert(err?.response?.data?.message || 'Failed to delete user');
     }
   }
 
-  const filteredUsers = users.filter((u) => {
-    const q = searchTerm.toLowerCase();
-    return (
-      (u.name && u.name.toLowerCase().includes(q)) ||
-      u.email.toLowerCase().includes(q) ||
-      u.role.toLowerCase().includes(q) ||
-      (u.employee?.name && u.employee.name.toLowerCase().includes(q))
-    );
-  });
+  // Users are already filtered server-side via debouncedSearch
+  const filteredUsers = users;
 
   const meta = ROLE_META[form.role] ?? ROLE_META.EMPLOYEE;
 
@@ -267,7 +268,8 @@ export default function UsersPage() {
           </button>
         }
         searchPlaceholder="Search user name, email, or role..."
-        onSearchChange={setSearchTerm}
+        searchQuery={searchTerm}
+        onSearchChange={(v) => { setSearchTerm(v); }}
       />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6">
@@ -286,12 +288,22 @@ export default function UsersPage() {
           </div>
           <div className="text-left sm:text-right">
             <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider block">Total Accounts</span>
-            <span className="text-xl font-bold text-slate-800">{users.length}</span>
+            <span className="text-xl font-bold text-slate-800">{pagination.total}</span>
           </div>
         </div>
 
         {/* Users Table */}
         <div className="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden">
+          <div className="px-4 py-3 border-b border-slate-200 bg-slate-50/60 flex flex-wrap items-center justify-between gap-3">
+            <span className="text-xs font-semibold text-slate-700 uppercase tracking-wider">User Directory</span>
+            <Pagination
+              page={pagination.page}
+              totalPages={pagination.totalPages}
+              total={pagination.total}
+              limit={pagination.limit}
+              onPageChange={(p) => fetchUsers(p)}
+            />
+          </div>
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm min-w-[650px]">
               <thead className="bg-slate-50 border-b border-slate-200 text-xs font-semibold uppercase text-slate-500 tracking-wider">
