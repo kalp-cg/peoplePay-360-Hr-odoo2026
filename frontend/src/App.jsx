@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
+import { atLeast } from './utils/roles';
 import Sidebar from './components/Sidebar';
 import TopHeader from './components/TopHeader';
+import ErrorBoundary from './components/ErrorBoundary';
 
 // Pages
 import Dashboard from './pages/Dashboard';
@@ -17,8 +19,18 @@ import UsersPage from './pages/UsersPage';
 import AuditLogsPage from './pages/AuditLogsPage';
 import LoginPage from './pages/LoginPage';
 import MyProfile from './pages/MyProfile';
+import AccessDenied from './pages/AccessDenied';
+import NotFound from './pages/NotFound';
 
-function ProtectedLayout({ children }) {
+/**
+ * Wraps every signed-in page with the chrome, and enforces the role hierarchy
+ * from section 3 of the specification at the route level.
+ *
+ * `minRole` matters as much as hiding a sidebar link: without it a user who
+ * types the URL directly still renders the page, and the screen shows its own
+ * empty state ("Total Accounts 0") rather than telling them they lack access.
+ */
+function ProtectedLayout({ children, minRole = 'EMPLOYEE', resource }) {
   const { user, loading } = useAuth();
   const location = useLocation();
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
@@ -40,6 +52,8 @@ function ProtectedLayout({ children }) {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
+  const permitted = atLeast(user.role, minRole);
+
   return (
     <div className="min-h-screen flex bg-[#F8F9FA] overflow-x-hidden">
       {/* Fixed Non-Moving Left Sidebar */}
@@ -49,12 +63,39 @@ function ProtectedLayout({ children }) {
       <div className="flex-1 flex flex-col md:pl-64 min-h-screen w-full min-w-0 transition-all">
         <TopHeader onOpenMobileSidebar={() => setMobileSidebarOpen(true)} />
         <main className="flex-1 flex flex-col min-w-0">
-          {children}
+          {permitted ? (
+            <ErrorBoundary key={location.pathname}>{children}</ErrorBoundary>
+          ) : (
+            <AccessDenied requiredRole={minRole} resource={resource} />
+          )}
         </main>
       </div>
     </div>
   );
 }
+
+/** Declarative route table so every page's minimum role is visible in one place. */
+const ROUTES = [
+  { path: '/', element: <Dashboard />, minRole: 'EMPLOYEE' },
+  { path: '/employees', element: <Employees />, minRole: 'EMPLOYEE' },
+  { path: '/employees/:id', element: <Employees />, minRole: 'EMPLOYEE' },
+  { path: '/my-profile', element: <MyProfile />, minRole: 'EMPLOYEE' },
+  { path: '/my-profile/:id', element: <MyProfile />, minRole: 'EMPLOYEE' },
+  { path: '/attendance', element: <Attendance />, minRole: 'EMPLOYEE' },
+  { path: '/time-off', element: <TimeOff />, minRole: 'EMPLOYEE' },
+
+  { path: '/contracts', element: <Contracts />, minRole: 'HR_MANAGER', resource: 'Contracts' },
+  { path: '/contracts/:id', element: <Contracts />, minRole: 'HR_MANAGER', resource: 'Contracts' },
+  { path: '/schedules', element: <Schedules />, minRole: 'HR_MANAGER', resource: 'Working Schedules' },
+
+  { path: '/payroll', element: <Payruns />, minRole: 'HR_PAYROLL_USER', resource: 'Payroll & Payruns' },
+  { path: '/payroll/payruns/:id', element: <Payruns />, minRole: 'HR_PAYROLL_USER', resource: 'Payroll & Payruns' },
+  { path: '/payroll/:id', element: <Payruns />, minRole: 'HR_PAYROLL_USER', resource: 'Payroll & Payruns' },
+  { path: '/salary-config', element: <SalaryConfig />, minRole: 'HR_PAYROLL_USER', resource: 'Salary Structures & Rules' },
+
+  { path: '/users', element: <UsersPage />, minRole: 'ADMIN', resource: 'Users & Access Control' },
+  { path: '/audit-logs', element: <AuditLogsPage />, minRole: 'ADMIN', resource: 'Audit Logs' },
+];
 
 export default function App() {
   const { user } = useAuth();
@@ -66,152 +107,27 @@ export default function App() {
         element={user ? <Navigate to="/" replace /> : <LoginPage />}
       />
 
+      {ROUTES.map(({ path, element, minRole, resource }) => (
+        <Route
+          key={path}
+          path={path}
+          element={
+            <ProtectedLayout minRole={minRole} resource={resource}>
+              {element}
+            </ProtectedLayout>
+          }
+        />
+      ))}
+
+      {/* Unknown URLs get a real 404 rather than a silent redirect. */}
       <Route
-        path="/"
+        path="*"
         element={
           <ProtectedLayout>
-            <Dashboard />
+            <NotFound />
           </ProtectedLayout>
         }
       />
-
-      <Route
-        path="/employees"
-        element={
-          <ProtectedLayout>
-            <Employees />
-          </ProtectedLayout>
-        }
-      />
-
-      <Route
-        path="/employees/:id"
-        element={
-          <ProtectedLayout>
-            <Employees />
-          </ProtectedLayout>
-        }
-      />
-
-      <Route
-        path="/my-profile"
-        element={
-          <ProtectedLayout>
-            <MyProfile />
-          </ProtectedLayout>
-        }
-      />
-
-      <Route
-        path="/my-profile/:id"
-        element={
-          <ProtectedLayout>
-            <MyProfile />
-          </ProtectedLayout>
-        }
-      />
-
-      <Route
-        path="/contracts"
-        element={
-          <ProtectedLayout>
-            <Contracts />
-          </ProtectedLayout>
-        }
-      />
-
-      <Route
-        path="/contracts/:id"
-        element={
-          <ProtectedLayout>
-            <Contracts />
-          </ProtectedLayout>
-        }
-      />
-
-      <Route
-        path="/schedules"
-        element={
-          <ProtectedLayout>
-            <Schedules />
-          </ProtectedLayout>
-        }
-      />
-
-      <Route
-        path="/attendance"
-        element={
-          <ProtectedLayout>
-            <Attendance />
-          </ProtectedLayout>
-        }
-      />
-
-      <Route
-        path="/time-off"
-        element={
-          <ProtectedLayout>
-            <TimeOff />
-          </ProtectedLayout>
-        }
-      />
-
-      <Route
-        path="/payroll"
-        element={
-          <ProtectedLayout>
-            <Payruns />
-          </ProtectedLayout>
-        }
-      />
-
-      <Route
-        path="/payroll/payruns/:id"
-        element={
-          <ProtectedLayout>
-            <Payruns />
-          </ProtectedLayout>
-        }
-      />
-
-      <Route
-        path="/payroll/:id"
-        element={
-          <ProtectedLayout>
-            <Payruns />
-          </ProtectedLayout>
-        }
-      />
-
-      <Route
-        path="/salary-config"
-        element={
-          <ProtectedLayout>
-            <SalaryConfig />
-          </ProtectedLayout>
-        }
-      />
-
-      <Route
-        path="/users"
-        element={
-          <ProtectedLayout>
-            <UsersPage />
-          </ProtectedLayout>
-        }
-      />
-
-      <Route
-        path="/audit-logs"
-        element={
-          <ProtectedLayout>
-            <AuditLogsPage />
-          </ProtectedLayout>
-        }
-      />
-
-      {/* Fallback route */}
-      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
 }

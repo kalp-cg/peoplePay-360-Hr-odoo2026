@@ -11,7 +11,7 @@ class PayrollEngine {
   /**
    * Safe algebraic expression evaluator with a scoped context dictionary.
    */
-  evaluateExpression(expression, context) {
+  evaluateExpression(expression, context, ruleCode) {
     if (typeof expression === 'number') return expression;
     if (!expression || typeof expression !== 'string') return 0;
 
@@ -21,18 +21,39 @@ class PayrollEngine {
       return Number(trimmed);
     }
 
+    const label = ruleCode ? `Salary rule "${ruleCode}"` : 'A salary rule';
+
+    let result;
     try {
       // Build function with explicit context variable names
       const keys = Object.keys(context);
       const values = Object.values(context);
       // Create safe sanitized evaluation function
       const fn = new Function(...keys, `return (${trimmed});`);
-      const result = fn(...values);
-      return isNaN(result) ? 0 : Math.round(result * 100) / 100;
+      result = fn(...values);
     } catch (err) {
-      console.warn(`[PayrollEngine] Error evaluating expression "${trimmed}" with context:`, context, err.message);
-      return 0;
+      // Swallowing this used to return 0, which quietly produced payslips with a
+      // zero gross and net instead of stopping the run. Payroll must never guess.
+      throw {
+        statusCode: 400,
+        code: 'RULE_EXPRESSION_FAILED',
+        message:
+          `${label} could not be calculated. Its formula "${trimmed}" is invalid: ${err.message}. ` +
+          'Correct the rule in Salary Rules and compute again.',
+      };
     }
+
+    if (typeof result !== 'number' || !isFinite(result)) {
+      throw {
+        statusCode: 400,
+        code: 'RULE_EXPRESSION_FAILED',
+        message:
+          `${label} produced a non-numeric result from the formula "${trimmed}". ` +
+          'Correct the rule in Salary Rules and compute again.',
+      };
+    }
+
+    return Math.round(result * 100) / 100;
   }
 
   /**
@@ -92,16 +113,16 @@ class PayrollEngine {
       let amount = 0;
 
       if (rule.calculationType === 'FIXED') {
-        amount = this.evaluateExpression(rule.valueExpression, context);
+        amount = this.evaluateExpression(rule.valueExpression, context, rule.code);
         // If fixed amount basic and unpaid leave exists, scale proportionally
         if (rule.code === 'BASIC' && unpaidLeaves > 0) {
           amount = Math.round(amount * attendanceRatio * 100) / 100;
         }
       } else if (rule.calculationType === 'PERCENTAGE') {
         // e.g. "0.20 * BASIC" or pure percentage expression
-        amount = this.evaluateExpression(rule.valueExpression, context);
+        amount = this.evaluateExpression(rule.valueExpression, context, rule.code);
       } else if (rule.calculationType === 'FORMULA') {
-        amount = this.evaluateExpression(rule.valueExpression, context);
+        amount = this.evaluateExpression(rule.valueExpression, context, rule.code);
       }
 
       // Store in context accumulator for subsequent rules

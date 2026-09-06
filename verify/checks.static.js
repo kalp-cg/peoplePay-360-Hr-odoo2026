@@ -172,6 +172,60 @@ async function run({ build = false } = {}) {
     return called.size + ' distinct endpoints, all mounted';
   });
 
+  section('STATIC / Route guards and error pages');
+
+  await check('ARCH', 'Every route declares a minimum role', async () => {
+    const app = read(path.join(FE, 'App.jsx'));
+    const table = app.match(/const ROUTES = \[([\s\S]*?)\n\];/);
+    assert(table, 'App.jsx has no ROUTES table - route guards cannot be audited');
+
+    const entries = table[1].split('\n').map((l) => l.trim()).filter((l) => l.startsWith('{ path:'));
+    assert(entries.length >= 10, 'only ' + entries.length + ' routes found, expected 10+');
+
+    const ungarded = entries.filter((l) => !/minRole:\s*'[A-Z_]+'/.test(l));
+    assert(ungarded.length === 0,
+      'routes without a minRole (any signed-in user could open them):\n       - ' + ungarded.join('\n       - '));
+
+    // A page that renders its own empty state instead of a denial is the exact
+    // defect that made /users report "Total Accounts 0" to non-admins.
+    const privileged = entries.filter((l) => /minRole:\s*'(HR_MANAGER|HR_PAYROLL_USER|HR_PAYROLL_MANAGER|ADMIN)'/.test(l));
+    const noResource = privileged.filter((l) => !/resource:\s*'/.test(l));
+    assert(noResource.length === 0,
+      'restricted routes without a `resource` label for the denial screen:\n       - ' + noResource.join('\n       - '));
+
+    return entries.length + ' routes guarded, ' + privileged.length + ' restricted';
+  });
+
+  await check('ARCH', 'Access-denied, not-found and error-boundary screens exist and are wired', async () => {
+    const files = {
+      'AccessDenied page': path.join(FE, 'pages', 'AccessDenied.jsx'),
+      'NotFound page': path.join(FE, 'pages', 'NotFound.jsx'),
+      'ErrorBoundary': path.join(FE, 'components', 'ErrorBoundary.jsx'),
+    };
+    const missing = Object.keys(files).filter((k) => !fs.existsSync(files[k]));
+    assert(missing.length === 0, 'missing: ' + missing.join(', '));
+
+    const app = read(path.join(FE, 'App.jsx'));
+    for (const name of ['AccessDenied', 'NotFound', 'ErrorBoundary']) {
+      assert(new RegExp('<' + name + '\\b').test(app), name + ' is imported but never rendered in App.jsx');
+    }
+    // The catch-all must render the 404 screen, not silently bounce to the dashboard.
+    assert(
+      !/path="\*"[\s\S]{0,120}<Navigate/.test(app),
+      'the catch-all route still redirects instead of showing the 404 page'
+    );
+    return 'all three screens present and wired';
+  });
+
+  await check('ARCH', 'Expired sessions are handled instead of failing silently', async () => {
+    const client = read(path.join(FE, 'api', 'client.js'));
+    assert(/401/.test(client), 'api/client.js does not handle HTTP 401 at all');
+    assert(/removeItem\(\s*['"]token['"]\s*\)/.test(client), 'a 401 does not clear the stored token');
+    assert(/auth\/login/.test(client),
+      'the 401 handler does not exempt the login request, so a wrong password would redirect instead of showing an error');
+    return 'expired token clears the session and returns to login';
+  });
+
   section('STATIC / Payslip PDF rendering');
 
   await check('B8', 'Payslip PDF can actually render its currency symbol', async () => {
