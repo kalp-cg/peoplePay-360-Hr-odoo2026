@@ -213,8 +213,10 @@ async function main() {
           { name: 'Basic Salary',              code: 'BASIC',     category: 'BASIC',     sequence: 1, calculationType: 'PERCENTAGE', valueExpression: '0.60 * WAGE',  active: true },
           { name: 'House Rent Allowance',      code: 'HRA',       category: 'ALLOWANCE', sequence: 2, calculationType: 'PERCENTAGE', valueExpression: '0.20 * BASIC', active: true },
           { name: 'Standard Special Allowance',code: 'ALLOWANCE', category: 'ALLOWANCE', sequence: 3, calculationType: 'PERCENTAGE', valueExpression: '0.28 * WAGE',  active: true },
-          { name: 'Provident Fund (Employee)', code: 'PF',        category: 'DEDUCTION', sequence: 4, calculationType: 'PERCENTAGE', valueExpression: '0.12 * BASIC', active: true },
-          { name: 'Professional Tax',          code: 'TAX',       category: 'DEDUCTION', sequence: 5, calculationType: 'FIXED',      valueExpression: '200',          active: true },
+          { name: 'Gross Salary',              code: 'GROSS',     category: 'GROSS',     sequence: 4, calculationType: 'FORMULA',    valueExpression: 'BASIC + HRA + ALLOWANCE', active: true },
+          { name: 'Provident Fund (Employee)', code: 'PF',        category: 'DEDUCTION', sequence: 5, calculationType: 'PERCENTAGE', valueExpression: '0.12 * BASIC', active: true },
+          { name: 'Professional Tax',          code: 'TAX',       category: 'DEDUCTION', sequence: 6, calculationType: 'FIXED',      valueExpression: '200',          active: true },
+          { name: 'Net Salary',                code: 'NET',       category: 'NET',       sequence: 7, calculationType: 'FORMULA',    valueExpression: 'GROSS - PF - TAX', active: true },
         ],
       },
     },
@@ -467,7 +469,13 @@ async function main() {
 
     for (let idx = 0; idx < def.emp.length; idx++) {
       const emp      = def.emp[idx];
-      const contract = createdContracts.find(c => c.employeeId === emp.id) ?? createdContracts[0];
+      // Never borrow another employee's contract: a payslip must be computed from
+      // the contract that belongs to its own employee, or not generated at all.
+      const contract = createdContracts.find(c => c.employeeId === emp.id);
+      if (!contract) {
+        console.warn(`  ! Skipping payslip for ${emp.employeeId ?? emp.id} - no contract on record`);
+        continue;
+      }
 
       const effectiveWage = Math.round(emp.wage * def.mult);
       const basic    = Math.round(effectiveWage * 0.60);
@@ -501,8 +509,10 @@ async function main() {
         { payslipId: slip.id, code:'BASIC',     name:'Basic Salary',              category:'BASIC',     sequence:1, amount:basic     },
         { payslipId: slip.id, code:'HRA',       name:'House Rent Allowance',      category:'ALLOWANCE', sequence:2, amount:hra       },
         { payslipId: slip.id, code:'ALLOWANCE', name:'Standard Special Allowance',category:'ALLOWANCE', sequence:3, amount:allowance },
-        { payslipId: slip.id, code:'PF',        name:'Provident Fund (Employee)', category:'DEDUCTION', sequence:4, amount:pf        },
-        { payslipId: slip.id, code:'TAX',       name:'Professional Tax',          category:'DEDUCTION', sequence:5, amount:tax       },
+        { payslipId: slip.id, code:'GROSS',     name:'Gross Salary',              category:'GROSS',     sequence:4, amount:gross     },
+        { payslipId: slip.id, code:'PF',        name:'Provident Fund (Employee)', category:'DEDUCTION', sequence:5, amount:pf        },
+        { payslipId: slip.id, code:'TAX',       name:'Professional Tax',          category:'DEDUCTION', sequence:6, amount:tax       },
+        { payslipId: slip.id, code:'NET',       name:'Net Salary',                category:'NET',       sequence:7, amount:net       },
       );
     }
 
