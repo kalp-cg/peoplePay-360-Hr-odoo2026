@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { 
   Clock, Plus, Edit2, CheckCircle2, AlertTriangle, X, ShieldAlert, 
@@ -55,8 +55,18 @@ export default function Attendance() {
     correctionReason: '',
   });
 
+  // The 8s poll and the window listeners below are registered once per filter
+  // change, so they capture whatever `search` and `page` held at that moment.
+  // Reading the live values from a ref instead means a background refresh can
+  // never silently revert the user's search box or bounce them back to page 1.
+  const filtersRef = useRef({ search: '', statusFilter: '', page: 1 });
   useEffect(() => {
-    fetchAttendance();
+    filtersRef.current = { search, statusFilter, page: pagination.page };
+  }, [search, statusFilter, pagination.page]);
+
+  useEffect(() => {
+    // A status-filter change starts a new result set, so go back to page 1.
+    fetchAttendance(1);
     fetchPolicy();
     if (isEmployee) {
       fetchCurrentStatus();
@@ -149,13 +159,16 @@ export default function Attendance() {
     }
   }
 
-  async function fetchAttendance(page = pagination.page) {
+  async function fetchAttendance(page) {
     try {
+      // Always read the current filters, never the ones captured when a poll or
+      // event listener was registered.
+      const live = filtersRef.current;
       const params = {
-        status: statusFilter || undefined,
+        status: live.statusFilter || undefined,
         employeeId: employeeIdParam || undefined,
-        search: search?.trim() || undefined,
-        page,
+        search: live.search?.trim() || undefined,
+        page: page ?? live.page ?? 1,
         limit: 25,
       };
       const res = await api.get('/attendance', { params });
