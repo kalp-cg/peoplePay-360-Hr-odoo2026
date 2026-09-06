@@ -2,6 +2,7 @@ const express = require('express');
 const attendanceController = require('./attendance.controller');
 const authenticate = require('../../middleware/auth.middleware');
 const authorize = require('../../middleware/role.middleware');
+const { atLeast } = require('../../middleware/roles');
 
 const router = express.Router();
 
@@ -13,6 +14,6 @@ router.get('/policy', (req, res, next) => attendanceController.getPolicy(req, re
 router.put('/policy', authorize('ADMIN'), (req, res, next) => attendanceController.updatePolicy(req, res, next));
 router.get('/', (req, res, next) => attendanceController.getAll(req, res, next));
 router.post('/', (req, res, next) => attendanceController.record(req, res, next));
-router.put('/:id', authorize('ADMIN', 'HR_MANAGER'), (req, res, next) => attendanceController.correct(req, res, next));
+router.put('/:id', authorize(...atLeast('HR_MANAGER')), (req, res, next) => attendanceController.correct(req, res, next));
 
 module.exports = router;

@@ -6,6 +6,7 @@ import ControlPanel from '../components/ControlPanel';
 import Pagination from '../components/Pagination';
 import { formatDateDMY } from '../utils/formatters';
 import { useAuth } from '../context/AuthContext';
+import { atLeast } from '../utils/roles';
 import { useDebounce } from '../hooks/useDebounce';
 
 export default function Contracts() {
@@ -15,7 +16,7 @@ export default function Contracts() {
   const [searchParams] = useSearchParams();
   const employeeIdParam = searchParams.get('employeeId');
 
-  const canCreateContract = ['ADMIN', 'HR_MANAGER', 'HR_PAYROLL_MANAGER'].includes(user?.role);
+  const canCreateContract = atLeast(user?.role, 'HR_MANAGER');
 
   const [contracts, setContracts] = useState([]);
   const [pagination, setPagination] = useState({ total: 0, page: 1, limit: 25, totalPages: 1 });

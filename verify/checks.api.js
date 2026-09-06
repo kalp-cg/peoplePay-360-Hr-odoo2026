@@ -25,32 +25,63 @@ const FALLBACK_EMAILS = {
 const TAG = '[VERIFY]';
 
 /**
- * RBAC expectations straight out of section 3 of the problem statement.
- * `allow` lists the roles that must get a non-403; every other role must get 403.
+ * The five roles in section 3 are cumulative, so each endpoint is expressed as a
+ * minimum role rather than a hand-written list: every role at or above `minRole`
+ * must be allowed, and every role below it must get a 403.
+ *
+ *   EMPLOYEE < HR_MANAGER < HR_PAYROLL_USER < HR_PAYROLL_MANAGER < ADMIN
+ *
+ * `alsoAllow` covers the one case that is not a pure hierarchy - employees may
+ * read their own payslips even though HR Manager, which outranks them, may not
+ * touch payroll at all.
  */
+const ROLE_ORDER = ['EMPLOYEE', 'HR_MANAGER', 'HR_PAYROLL_USER', 'HR_PAYROLL_MANAGER', 'ADMIN'];
+const rolesAtLeast = (role) => ROLE_ORDER.slice(ROLE_ORDER.indexOf(role));
+
 const RBAC_MATRIX = [
-  { req: 'RBAC', label: 'Payruns list', method: 'GET', path: '/api/payruns',
-    allow: ['ADMIN', 'HR_PAYROLL_MANAGER', 'HR_PAYROLL_USER'] },
-  { req: 'RBAC', label: 'Salary rules read', method: 'GET', path: '/api/salary/rules',
-    allow: ['ADMIN', 'HR_PAYROLL_MANAGER', 'HR_PAYROLL_USER'] },
-  { req: 'RBAC', label: 'Salary rule create (payroll manager only)', method: 'POST', path: '/api/salary/rules',
-    allow: ['ADMIN', 'HR_PAYROLL_MANAGER'], body: {} },
-  { req: 'RBAC', label: 'Salary structure create', method: 'POST', path: '/api/salary/structures',
-    allow: ['ADMIN', 'HR_PAYROLL_MANAGER'], body: {} },
-  { req: 'RBAC', label: 'User administration', method: 'GET', path: '/api/users',
-    allow: ['ADMIN'] },
+  // --- HR administration: HR Manager and everything above it ---
   { req: 'RBAC', label: 'Employee create', method: 'POST', path: '/api/employees',
-    allow: ['ADMIN', 'HR_MANAGER', 'HR_PAYROLL_MANAGER'], body: {} },
+    minRole: 'HR_MANAGER', body: {} },
+  { req: 'RBAC', label: 'Employee update', method: 'PUT', path: '/api/employees/999999',
+    minRole: 'HR_MANAGER', body: {} },
+  { req: 'RBAC', label: 'Employee delete', method: 'DELETE', path: '/api/employees/999999',
+    minRole: 'HR_MANAGER' },
   { req: 'RBAC', label: 'Contract create', method: 'POST', path: '/api/contracts',
-    allow: ['ADMIN', 'HR_MANAGER', 'HR_PAYROLL_MANAGER'], body: {} },
-  { req: 'RBAC', label: 'Attendance correction', method: 'PUT', path: '/api/attendance/999999',
-    allow: ['ADMIN', 'HR_MANAGER'], body: {} },
-  { req: 'RBAC', label: 'Time off approval', method: 'PATCH', path: '/api/time-off/requests/999999/approve',
-    allow: ['ADMIN', 'HR_MANAGER', 'HR_PAYROLL_MANAGER'] },
-  { req: 'RBAC', label: 'Time off allocation create', method: 'POST', path: '/api/time-off/allocations',
-    allow: ['ADMIN', 'HR_MANAGER', 'HR_PAYROLL_MANAGER'], body: {} },
+    minRole: 'HR_MANAGER', body: {} },
   { req: 'RBAC', label: 'Working schedule create', method: 'POST', path: '/api/schedules',
-    allow: ['ADMIN', 'HR_MANAGER', 'HR_PAYROLL_MANAGER'], body: {} },
+    minRole: 'HR_MANAGER', body: {} },
+  { req: 'RBAC', label: 'Attendance correction', method: 'PUT', path: '/api/attendance/999999',
+    minRole: 'HR_MANAGER', body: {} },
+  { req: 'RBAC', label: 'Time off approval', method: 'PATCH', path: '/api/time-off/requests/999999/approve',
+    minRole: 'HR_MANAGER' },
+  { req: 'RBAC', label: 'Time off allocation create', method: 'POST', path: '/api/time-off/allocations',
+    minRole: 'HR_MANAGER', body: {} },
+  { req: 'RBAC', label: 'Time off type create', method: 'POST', path: '/api/time-off/types',
+    minRole: 'HR_MANAGER', body: {} },
+
+  // --- Payroll operations: HR Payroll User and above (HR Manager excluded) ---
+  { req: 'RBAC', label: 'Payruns list', method: 'GET', path: '/api/payruns',
+    minRole: 'HR_PAYROLL_USER' },
+  { req: 'RBAC', label: 'Payrun create', method: 'POST', path: '/api/payruns',
+    minRole: 'HR_PAYROLL_USER', body: {} },
+  { req: 'RBAC', label: 'Payrun compute', method: 'POST', path: '/api/payruns/999999/compute',
+    minRole: 'HR_PAYROLL_USER' },
+  { req: 'RBAC', label: 'Salary rules read', method: 'GET', path: '/api/salary/rules',
+    minRole: 'HR_PAYROLL_USER' },
+  { req: 'RBAC', label: 'Payslip list', method: 'GET', path: '/api/payslips',
+    minRole: 'HR_PAYROLL_USER', alsoAllow: ['EMPLOYEE'] },
+
+  // --- Salary configuration: payroll manager only ---
+  { req: 'RBAC', label: 'Salary rule create', method: 'POST', path: '/api/salary/rules',
+    minRole: 'HR_PAYROLL_MANAGER', body: {} },
+  { req: 'RBAC', label: 'Salary structure create', method: 'POST', path: '/api/salary/structures',
+    minRole: 'HR_PAYROLL_MANAGER', body: {} },
+
+  // --- System administration ---
+  { req: 'RBAC', label: 'User administration', method: 'GET', path: '/api/users',
+    minRole: 'ADMIN' },
+  { req: 'RBAC', label: 'Attendance policy update', method: 'PUT', path: '/api/attendance/policy',
+    minRole: 'ADMIN', body: {} },
 ];
 
 async function run(api, opts = {}) {
@@ -133,21 +164,59 @@ async function run(api, opts = {}) {
   section('API / Role-based access control (problem statement section 3)');
 
   for (const rule of RBAC_MATRIX) {
-    await check(rule.req, rule.label + ' - allowed for ' + rule.allow.join('/'), async () => {
+    const allow = rolesAtLeast(rule.minRole).concat(rule.alsoAllow || []);
+    const label = rule.label + ' - ' + rule.minRole +
+      (rule.alsoAllow ? ' and above, plus ' + rule.alsoAllow.join('/') : ' and above');
+    await check(rule.req, label, async () => {
       const problems = [];
       for (const role of Object.keys(ROLE_PASSWORDS)) {
         const token = ctx.tokens[role];
         if (!token) continue;
         const res = await api.request(rule.method, rule.path, { token, body: rule.body });
         const denied = res.status === 403;
-        const shouldAllow = rule.allow.indexOf(role) !== -1;
+        const shouldAllow = allow.indexOf(role) !== -1;
         if (shouldAllow && denied) problems.push(role + ' wrongly BLOCKED (403)');
         if (!shouldAllow && !denied) problems.push(role + ' wrongly ALLOWED (HTTP ' + res.status + ')');
       }
       assert(problems.length === 0, problems.join('; '));
-      return 'matrix verified for 5 roles';
+      return 'verified across all 5 roles';
     });
   }
+
+  await check('RBAC', 'Permissions never invert: a senior role can do whatever a junior can', async () => {
+    // The specification stacks the roles, so any endpoint reachable by one role
+    // must be reachable by every role above it. This catches a hand-edited
+    // allow-list that accidentally skips a rank - the exact defect that left
+    // HR_PAYROLL_USER without the HR Manager permissions it is owed.
+    const endpoints = RBAC_MATRIX
+      .filter((r) => !r.alsoAllow)
+      .map((r) => ({ method: r.method, path: r.path, body: r.body }));
+    const inversions = [];
+
+    for (const ep of endpoints) {
+      const reachable = [];
+      for (const role of ROLE_ORDER) {
+        const token = ctx.tokens[role];
+        if (!token) continue;
+        const res = await api.request(ep.method, ep.path, { token, body: ep.body });
+        reachable.push({ role, allowed: res.status !== 403 });
+      }
+      for (let i = 0; i < reachable.length; i++) {
+        if (!reachable[i].allowed) continue;
+        // Everything ranked above an allowed role must also be allowed.
+        for (let j = i + 1; j < reachable.length; j++) {
+          if (!reachable[j].allowed) {
+            inversions.push(
+              `${ep.method} ${ep.path}: ${reachable[i].role} is allowed but ${reachable[j].role} (higher) is blocked`
+            );
+          }
+        }
+      }
+    }
+    assert(inversions.length === 0,
+      'Role hierarchy is inverted:\n       - ' + inversions.join('\n       - '));
+    return endpoints.length + ' endpoints are monotonic across the hierarchy';
+  });
 
   // ------------------------------------------------------- A1 / B1 / B2 EMPLOYEES
   section('API / A1-A2, B1-B2  Employee master + related records');

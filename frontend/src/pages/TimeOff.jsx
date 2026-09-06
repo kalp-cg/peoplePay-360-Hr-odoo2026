@@ -5,6 +5,7 @@ import api from '../api/client';
 import ControlPanel from '../components/ControlPanel';
 import Pagination from '../components/Pagination';
 import { useAuth } from '../context/AuthContext';
+import { atLeast } from '../utils/roles';
 import { formatPeriodRange } from '../utils/formatters';
 
 export default function TimeOff() {
@@ -189,7 +190,7 @@ export default function TimeOff() {
   }
 
   const isEmployee = user?.role === 'EMPLOYEE';
-  const isHR = user?.role === 'ADMIN' || user?.role === 'HR_MANAGER' || user?.role === 'HR_PAYROLL_MANAGER';
+  const isHR = atLeast(user?.role, 'HR_MANAGER');
 
   return (
     <div className="min-h-screen bg-[#F8F9FA] pb-12">

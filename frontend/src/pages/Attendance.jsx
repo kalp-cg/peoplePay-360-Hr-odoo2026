@@ -8,6 +8,7 @@ import api from '../api/client';
 import ControlPanel from '../components/ControlPanel';
 import Pagination from '../components/Pagination';
 import { useAuth } from '../context/AuthContext';
+import { atLeast } from '../utils/roles';
 import { formatDateDMY } from '../utils/formatters';
 
 export default function Attendance() {
@@ -16,7 +17,7 @@ export default function Attendance() {
   const employeeIdParam = searchParams.get('employeeId');
 
   const isEmployee = user?.role === 'EMPLOYEE';
-  const canCorrect = ['ADMIN', 'HR_MANAGER', 'HR_PAYROLL_MANAGER'].includes(user?.role);
+  const canCorrect = atLeast(user?.role, 'HR_MANAGER');
   const canManagePolicy = user?.role === 'ADMIN';
 
   const [records, setRecords] = useState([]);

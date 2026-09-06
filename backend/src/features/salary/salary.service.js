@@ -1,5 +1,6 @@
 const salaryRepository = require('./salary.repository');
 const auditService = require('../audit/audit.service');
+const { validateRule } = require('./salary.validator');
 
 class SalaryService {
   async getStructures() {
@@ -49,6 +50,9 @@ class SalaryService {
   }
 
   async createRule(data, user) {
+    // Reject an unusable code or formula here rather than letting it silently
+    // evaluate to zero on every payslip this structure touches.
+    await validateRule(data);
     const created = await salaryRepository.createRule(data);
     await auditService.log({
       userId: user.id,
@@ -66,6 +70,7 @@ class SalaryService {
     if (!current) {
       throw { statusCode: 404, message: 'Salary rule not found.', code: 'NOT_FOUND' };
     }
+    await validateRule(data, current);
     const updated = await salaryRepository.updateRule(id, data);
     await auditService.log({
       userId: user.id,

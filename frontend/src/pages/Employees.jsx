@@ -11,6 +11,7 @@ import api from '../api/client';
 import ControlPanel from '../components/ControlPanel';
 import Pagination from '../components/Pagination';
 import { useAuth } from '../context/AuthContext';
+import { atLeast } from '../utils/roles';
 import { useDebounce } from '../hooks/useDebounce';
 
 export default function Employees() {
@@ -19,7 +20,7 @@ export default function Employees() {
   const { id: routeEmployeeId } = useParams();
 
   const isEmployee = user?.role === 'EMPLOYEE';
-  const canManageEmployees = ['ADMIN', 'HR_MANAGER'].includes(user?.role);
+  const canManageEmployees = atLeast(user?.role, 'HR_MANAGER');
 
   const [employees, setEmployees] = useState([]);
   const [pagination, setPagination] = useState({ total: 0, page: 1, limit: 25, totalPages: 1 });
