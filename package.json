@@ -1,0 +1,14 @@
+{
+  "name": "peoplepay360",
+  "private": true,
+  "version": "1.0.0",
+  "description": "PeoplePay360 - Integrated HR & Payroll Operations Platform",
+  "scripts": {
+    "verify": "node verify",
+    "verify:static": "node verify --static",
+    "verify:readonly": "node verify --readonly",
+    "verify:full": "node verify --build",
+    "verify:proxy": "node verify --port 5173"
+  },
+  "license": "MIT"
+}

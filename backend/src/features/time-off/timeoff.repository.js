@@ -1,4 +1,5 @@
 const prisma = require('../../config/database');
+const { paginate, paginateResult } = require('../../utils/paginate');
 
 class TimeOffRepository {
   async getTypes() {
@@ -11,21 +12,30 @@ class TimeOffRepository {
     return prisma.timeOffType.create({ data });
   }
 
-  async getAllocations({ employeeId, year }) {
+  async getAllocations({ employeeId, year, page, limit } = {}) {
     const where = {};
     if (employeeId) where.employeeId = parseInt(employeeId, 10);
     if (year) where.year = parseInt(year, 10);
 
-    return prisma.timeOffAllocation.findMany({
-      where,
-      include: {
-        employee: {
-          select: { id: true, employeeId: true, name: true, department: true },
+    const { page: p, limit: l, skip } = paginate({ page, limit: limit || 50 });
+
+    const [data, total] = await Promise.all([
+      prisma.timeOffAllocation.findMany({
+        where,
+        include: {
+          employee: {
+            select: { id: true, employeeId: true, name: true, department: true },
+          },
+          timeOffType: true,
         },
-        timeOffType: true,
-      },
-      orderBy: { id: 'asc' },
-    });
+        orderBy: { id: 'asc' },
+        skip,
+        take: l,
+      }),
+      prisma.timeOffAllocation.count({ where }),
+    ]);
+
+    return paginateResult(data, total, p, l);
   }
 
   async createAllocation(data) {
@@ -46,7 +56,7 @@ class TimeOffRepository {
     });
   }
 
-  async getRequests({ employeeId, status, subordinateIds }) {
+  async getRequests({ employeeId, status, subordinateIds, page, limit } = {}) {
     const where = {};
     if (employeeId) where.employeeId = parseInt(employeeId, 10);
     if (status) where.status = status;
@@ -54,19 +64,28 @@ class TimeOffRepository {
       where.employeeId = { in: subordinateIds.length > 0 ? subordinateIds : [-1] };
     }
 
-    return prisma.timeOffRequest.findMany({
-      where,
-      include: {
-        employee: {
-          select: { id: true, employeeId: true, name: true, department: true },
+    const { page: p, limit: l, skip } = paginate({ page, limit: limit || 25 });
+
+    const [data, total] = await Promise.all([
+      prisma.timeOffRequest.findMany({
+        where,
+        include: {
+          employee: {
+            select: { id: true, employeeId: true, name: true, department: true },
+          },
+          timeOffType: true,
+          approvedBy: {
+            select: { id: true, name: true, email: true },
+          },
         },
-        timeOffType: true,
-        approvedBy: {
-          select: { id: true, name: true, email: true },
-        },
-      },
-      orderBy: { createdAt: 'desc' },
-    });
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: l,
+      }),
+      prisma.timeOffRequest.count({ where }),
+    ]);
+
+    return paginateResult(data, total, p, l);
   }
 
   async getRequestById(id) {

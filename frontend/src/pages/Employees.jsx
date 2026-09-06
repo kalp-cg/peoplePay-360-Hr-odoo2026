@@ -9,7 +9,9 @@ import {
 } from 'lucide-react';
 import api from '../api/client';
 import ControlPanel from '../components/ControlPanel';
+import Pagination from '../components/Pagination';
 import { useAuth } from '../context/AuthContext';
+import { useDebounce } from '../hooks/useDebounce';
 
 export default function Employees() {
   const { user } = useAuth();
@@ -20,8 +22,10 @@ export default function Employees() {
   const canManageEmployees = ['ADMIN', 'HR_MANAGER'].includes(user?.role);
 
   const [employees, setEmployees] = useState([]);
+  const [pagination, setPagination] = useState({ total: 0, page: 1, limit: 25, totalPages: 1 });
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const debouncedSearch = useDebounce(search, 300);
   const [departmentFilter, setDepartmentFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [viewMode, setViewMode] = useState('kanban'); // 'kanban' or 'list'
@@ -83,9 +87,9 @@ export default function Employees() {
   });
 
   useEffect(() => {
-    fetchEmployees();
+    fetchEmployees(1);
     fetchMetadata();
-  }, []);
+  }, [debouncedSearch, departmentFilter, statusFilter]);
 
   useEffect(() => {
     if (routeEmployeeId) {
@@ -95,16 +99,22 @@ export default function Employees() {
     }
   }, [routeEmployeeId]);
 
-  async function fetchEmployees() {
+  async function fetchEmployees(page = 1) {
     setLoading(true);
     try {
-      const res = await api.get('/employees');
-      setEmployees(res.data);
+      const params = { page, limit: 25 };
+      if (debouncedSearch.trim()) params.search = debouncedSearch.trim();
+      if (departmentFilter) params.departmentId = departmentFilter;
+      if (statusFilter) params.status = statusFilter;
+      const res = await api.get('/employees', { params });
+      const envelope = res.data;
+      setEmployees(envelope.data ?? []);
+      setPagination({ total: envelope.total, page: envelope.page, limit: envelope.limit, totalPages: envelope.totalPages });
 
       if (routeEmployeeId) {
         fetchEmployeeDetail(routeEmployeeId);
-      } else if (isEmployee && res.data.length > 0) {
-        const self = res.data.find(e => e.id === user.employeeId) || res.data[0];
+      } else if (isEmployee && (envelope.data ?? []).length > 0) {
+        const self = (envelope.data ?? []).find(e => e.id === user.employeeId) || (envelope.data ?? [])[0];
         if (self) {
           fetchEmployeeDetail(self.id);
         }
@@ -353,19 +363,8 @@ export default function Employees() {
     }
   }
 
-  const filteredEmployees = employees.filter((emp) => {
-    const q = search.toLowerCase();
-    const matchesSearch = (
-      emp.name?.toLowerCase().includes(q) ||
-      emp.employeeId?.toLowerCase().includes(q) ||
-      emp.email?.toLowerCase().includes(q) ||
-      emp.department?.name?.toLowerCase().includes(q) ||
-      emp.jobPosition?.title?.toLowerCase().includes(q)
-    );
-    const matchesDept = !departmentFilter || emp.departmentId === parseInt(departmentFilter, 10);
-    const matchesStatus = !statusFilter || emp.status === statusFilter;
-    return matchesSearch && matchesDept && matchesStatus;
-  });
+  // Employees are already filtered server-side; no client-side filter needed.
+  const filteredEmployees = employees;
 
   const activeContract = selectedEmployee?.contracts?.find(c => c.status === 'ACTIVE') || selectedEmployee?.contracts?.[0];
 
@@ -459,10 +458,10 @@ export default function Employees() {
             )
           )
         }
-        searchQuery={!selectedEmployee && !isEmployee ? search : null}
-        onSearchChange={!selectedEmployee && !isEmployee ? setSearch : null}
-        viewMode={!selectedEmployee && !isEmployee ? viewMode : null}
-        onViewModeChange={!selectedEmployee && !isEmployee ? setViewMode : null}
+        searchQuery={!selectedEmployee && !isEmployee ? search : undefined}
+        onSearchChange={!selectedEmployee && !isEmployee ? setSearch : undefined}
+        viewMode={!selectedEmployee && !isEmployee ? viewMode : undefined}
+        onViewModeChange={!selectedEmployee && !isEmployee ? setViewMode : undefined}
       />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4">
@@ -1197,9 +1196,13 @@ export default function Employees() {
                 </select>
               </div>
 
-              <div className="text-slate-500 font-medium">
-                Showing <span className="font-bold text-slate-800">{filteredEmployees.length}</span> of {employees.length} personnel records
-              </div>
+              <Pagination
+                page={pagination.page}
+                totalPages={pagination.totalPages}
+                total={pagination.total}
+                limit={pagination.limit}
+                onPageChange={(p) => fetchEmployees(p)}
+              />
             </div>
 
             {loading ? (
@@ -1281,51 +1284,51 @@ export default function Employees() {
             ) : (
               /* LIST TABLE VIEW - ODOO THEME */
               <div className="bg-white border border-slate-200 rounded shadow-xs overflow-hidden overflow-x-auto">
-                <table className="w-full text-left text-xs min-w-[750px]">
-                  <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold uppercase tracking-wider text-[11px]">
-                    <tr>
-                      <th className="px-4 py-2.5">Employee ID</th>
-                      <th className="px-4 py-2.5">Name</th>
-                      <th className="px-4 py-2.5">Department</th>
-                      <th className="px-4 py-2.5">Job Position</th>
-                      <th className="px-4 py-2.5">Monthly Wage</th>
-                      <th className="px-4 py-2.5">Leave Balance</th>
-                      <th className="px-4 py-2.5">Status</th>
-                      <th className="px-4 py-2.5 text-right">Action</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 text-slate-700">
-                    {filteredEmployees.map((emp) => (
-                      <tr 
-                        key={emp.id} 
-                        onClick={() => handleSelectEmployee(emp)}
-                        className="hover:bg-slate-50 cursor-pointer transition-colors"
-                      >
-                        <td className="px-4 py-2.5 font-mono font-bold text-[#714B67]">{emp.employeeId}</td>
-                        <td className="px-4 py-2.5 font-semibold text-slate-900">{emp.name}</td>
-                        <td className="px-4 py-2.5 text-slate-600">{emp.department?.name}</td>
-                        <td className="px-4 py-2.5 text-slate-600">{emp.jobPosition?.title}</td>
-                        <td className="px-4 py-2.5 font-mono font-bold text-teal-700">₹{(emp.activeWage || 0).toLocaleString()}</td>
-                        <td className="px-4 py-2.5 font-mono text-slate-600">{emp.totalRemainingLeaves ?? 18} Days</td>
-                        <td className="px-4 py-2.5">
-                          <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full border ${
-                            emp.status === 'ACTIVE'
-                              ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                              : 'bg-slate-100 text-slate-600 border-slate-300'
-                          }`}>
-                            {emp.status}
-                          </span>
-                        </td>
-                        <td className="px-4 py-2.5 text-right">
-                          <span className="text-slate-400 hover:text-[#714B67] font-semibold inline-flex items-center gap-0.5">
-                            View <ChevronRight className="w-3.5 h-3.5" />
-                          </span>
-                        </td>
+                  <table className="w-full text-left text-xs min-w-[750px]">
+                    <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold uppercase tracking-wider text-[11px]">
+                      <tr>
+                        <th className="px-4 py-2.5">Employee ID</th>
+                        <th className="px-4 py-2.5">Name</th>
+                        <th className="px-4 py-2.5">Department</th>
+                        <th className="px-4 py-2.5">Job Position</th>
+                        <th className="px-4 py-2.5">Monthly Wage</th>
+                        <th className="px-4 py-2.5">Leave Balance</th>
+                        <th className="px-4 py-2.5">Status</th>
+                        <th className="px-4 py-2.5 text-right">Action</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 text-slate-700">
+                      {filteredEmployees.map((emp) => (
+                        <tr 
+                          key={emp.id} 
+                          onClick={() => handleSelectEmployee(emp)}
+                          className="hover:bg-slate-50 cursor-pointer transition-colors"
+                        >
+                          <td className="px-4 py-2.5 font-mono font-bold text-[#714B67]">{emp.employeeId}</td>
+                          <td className="px-4 py-2.5 font-semibold text-slate-900">{emp.name}</td>
+                          <td className="px-4 py-2.5 text-slate-600">{emp.department?.name}</td>
+                          <td className="px-4 py-2.5 text-slate-600">{emp.jobPosition?.title}</td>
+                          <td className="px-4 py-2.5 font-mono font-bold text-teal-700">₹{(emp.activeWage || 0).toLocaleString()}</td>
+                          <td className="px-4 py-2.5 font-mono text-slate-600">{emp.totalRemainingLeaves ?? 18} Days</td>
+                          <td className="px-4 py-2.5">
+                            <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full border ${
+                              emp.status === 'ACTIVE'
+                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                : 'bg-slate-100 text-slate-600 border-slate-300'
+                            }`}>
+                              {emp.status}
+                            </span>
+                          </td>
+                          <td className="px-4 py-2.5 text-right">
+                            <span className="text-slate-400 hover:text-[#714B67] font-semibold inline-flex items-center gap-0.5">
+                              View <ChevronRight className="w-3.5 h-3.5" />
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
             )}
           </div>
         )}

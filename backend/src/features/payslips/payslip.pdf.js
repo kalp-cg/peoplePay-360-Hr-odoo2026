@@ -1,4 +1,5 @@
 const PDFDocument = require('pdfkit');
+const { registerFonts, formatAmount } = require('../../utils/pdf-fonts');
 
 /**
  * Generates a professional, print-ready PDF payslip
@@ -9,11 +10,18 @@ function generatePayslipPDF(payslip, dataCallback, endCallback) {
   doc.on('data', dataCallback);
   doc.on('end', endCallback);
 
+  // Built-in PDF fonts cannot encode the rupee sign, so an embedded font is used
+  // when one is available. `money()` is the only place amounts get formatted.
+  const FONT = registerFonts(doc);
+  const money = (value) => `${FONT.currency}${formatAmount(value)}`;
+
   const emp = payslip.employee;
   const payrun = payslip.payrun;
   const lines = payslip.payslipLines || [];
 
-  const earnings = lines.filter((l) => l.category === 'BASIC' || l.category === 'ALLOWANCE' || l.category === 'GROSS');
+  // GROSS and NET rules are rendered as the totals box and the net banner below,
+  // so they must not also appear as line items in the earnings column.
+  const earnings = lines.filter((l) => l.category === 'BASIC' || l.category === 'ALLOWANCE');
   const deductions = lines.filter((l) => l.category === 'DEDUCTION');
 
   // Palette: Odoo purple #714B67 and Slate #2C3E50
@@ -22,11 +30,11 @@ function generatePayslipPDF(payslip, dataCallback, endCallback) {
 
   // 1. Header Banner
   doc.rect(40, 40, 515, 60).fill(primaryColor);
-  doc.fillColor('#FFFFFF').fontSize(20).font('Helvetica-Bold').text('PEOPLEPAY360', 60, 55);
-  doc.fontSize(10).font('Helvetica').text('CONFIDENTIAL SALARY PAYSLIP', 60, 80);
+  doc.fillColor('#FFFFFF').fontSize(20).font(FONT.bold).text('PEOPLEPAY360', 60, 55);
+  doc.fontSize(10).font(FONT.regular).text('CONFIDENTIAL SALARY PAYSLIP', 60, 80);
 
-  doc.fillColor('#FFFFFF').fontSize(10).font('Helvetica-Bold').text(`Payslip No: ${payslip.payslipNumber}`, 350, 55, { align: 'right', width: 185 });
-  doc.font('Helvetica').text(`Status: ${payslip.status}`, 350, 70, { align: 'right', width: 185 });
+  doc.fillColor('#FFFFFF').fontSize(10).font(FONT.bold).text(`Payslip No: ${payslip.payslipNumber}`, 350, 55, { align: 'right', width: 185 });
+  doc.font(FONT.regular).text(`Status: ${payslip.status}`, 350, 70, { align: 'right', width: 185 });
   doc.text(`Generated: ${new Date().toLocaleDateString()}`, 350, 85, { align: 'right', width: 185 });
 
   doc.moveDown(3);
@@ -35,11 +43,11 @@ function generatePayslipPDF(payslip, dataCallback, endCallback) {
   const startY = 120;
   doc.rect(40, startY, 515, 85).strokeColor('#E2E8F0').stroke();
 
-  doc.fillColor(darkSlate).fontSize(9).font('Helvetica-Bold');
+  doc.fillColor(darkSlate).fontSize(9).font(FONT.bold);
   doc.text('EMPLOYEE DETAILS', 50, startY + 10);
   doc.text('PAYROLL PERIOD', 320, startY + 10);
 
-  doc.font('Helvetica').fontSize(9).fillColor('#475569');
+  doc.font(FONT.regular).fontSize(9).fillColor('#475569');
   doc.text(`Name: ${emp.name}`, 50, startY + 28);
   doc.text(`Employee ID: ${emp.employeeId}`, 50, startY + 42);
   doc.text(`Department: ${emp.department?.name || 'General'}`, 50, startY + 56);
@@ -56,14 +64,14 @@ function generatePayslipPDF(payslip, dataCallback, endCallback) {
   // 3. Attendance & Worked Summary
   const attY = 220;
   doc.rect(40, attY, 515, 45).fill('#F8FAFC');
-  doc.fillColor(darkSlate).fontSize(8).font('Helvetica-Bold');
+  doc.fillColor(darkSlate).fontSize(8).font(FONT.bold);
   doc.text('WORKING DAYS', 55, attY + 10);
   doc.text('PRESENT DAYS', 160, attY + 10);
   doc.text('LEAVE DAYS', 270, attY + 10);
   doc.text('ABSENT DAYS', 370, attY + 10);
   doc.text('OVERTIME (HRS)', 460, attY + 10);
 
-  doc.fontSize(11).font('Helvetica').fillColor(primaryColor);
+  doc.fontSize(11).font(FONT.regular).fillColor(primaryColor);
   doc.text(String(payslip.workingDays), 55, attY + 25);
   doc.text(String(payslip.presentDays), 160, attY + 25);
   doc.text(String(payslip.leaveDays), 270, attY + 25);
@@ -73,11 +81,11 @@ function generatePayslipPDF(payslip, dataCallback, endCallback) {
   // 4. Salary Breakdown Table Header
   const tableY = 285;
   doc.rect(40, tableY, 250, 22).fill('#714B67');
-  doc.fillColor('#FFFFFF').fontSize(9).font('Helvetica-Bold').text('EARNINGS & ALLOWANCES', 50, tableY + 6);
+  doc.fillColor('#FFFFFF').fontSize(9).font(FONT.bold).text('EARNINGS & ALLOWANCES', 50, tableY + 6);
   doc.text('AMOUNT (INR)', 210, tableY + 6, { width: 70, align: 'right' });
 
   doc.rect(305, tableY, 250, 22).fill('#714B67');
-  doc.fillColor('#FFFFFF').fontSize(9).font('Helvetica-Bold').text('DEDUCTIONS & TAXES', 315, tableY + 6);
+  doc.fillColor('#FFFFFF').fontSize(9).font(FONT.bold).text('DEDUCTIONS & TAXES', 315, tableY + 6);
   doc.text('AMOUNT (INR)', 475, tableY + 6, { width: 70, align: 'right' });
 
   // Rows
@@ -88,15 +96,15 @@ function generatePayslipPDF(payslip, dataCallback, endCallback) {
     const earn = earnings[i];
     const ded = deductions[i];
 
-    doc.fillColor('#334155').fontSize(9).font('Helvetica');
+    doc.fillColor('#334155').fontSize(9).font(FONT.regular);
     if (earn) {
       doc.text(earn.name, 50, curY);
-      doc.text(`₹${earn.amount.toLocaleString()}`, 210, curY, { width: 70, align: 'right' });
+      doc.text(money(earn.amount), 210, curY, { width: 70, align: 'right' });
     }
 
     if (ded) {
       doc.text(ded.name, 315, curY);
-      doc.text(`-₹${ded.amount.toLocaleString()}`, 475, curY, { width: 70, align: 'right' });
+      doc.text(`-${money(ded.amount)}`, 475, curY, { width: 70, align: 'right' });
     }
 
     doc.moveTo(40, curY + 16).lineTo(555, curY + 16).strokeColor('#F1F5F9').stroke();
@@ -106,23 +114,23 @@ function generatePayslipPDF(payslip, dataCallback, endCallback) {
   // 5. Totals Box
   curY = Math.max(curY + 15, 450);
   doc.rect(40, curY, 250, 30).fill('#F1F5F9');
-  doc.fillColor(darkSlate).fontSize(9).font('Helvetica-Bold').text('TOTAL GROSS SALARY:', 50, curY + 10);
-  doc.text(`₹${payslip.grossSalary.toLocaleString()}`, 190, curY + 10, { width: 90, align: 'right' });
+  doc.fillColor(darkSlate).fontSize(9).font(FONT.bold).text('TOTAL GROSS SALARY:', 50, curY + 10);
+  doc.text(money(payslip.grossSalary), 190, curY + 10, { width: 90, align: 'right' });
 
   doc.rect(305, curY, 250, 30).fill('#F1F5F9');
-  doc.fillColor(darkSlate).fontSize(9).font('Helvetica-Bold').text('TOTAL DEDUCTIONS:', 315, curY + 10);
-  doc.text(`-₹${payslip.totalDeductions.toLocaleString()}`, 455, curY + 10, { width: 90, align: 'right' });
+  doc.fillColor(darkSlate).fontSize(9).font(FONT.bold).text('TOTAL DEDUCTIONS:', 315, curY + 10);
+  doc.text(`-${money(payslip.totalDeductions)}`, 455, curY + 10, { width: 90, align: 'right' });
 
   // 6. Net Pay Banner
   const netY = curY + 45;
   doc.rect(40, netY, 515, 55).fill('#00A09D');
-  doc.fillColor('#FFFFFF').fontSize(12).font('Helvetica-Bold').text('NET PAYABLE SALARY', 60, netY + 14);
-  doc.fontSize(8).font('Helvetica').text('(Gross Salary minus all statutory deductions)', 60, netY + 32);
+  doc.fillColor('#FFFFFF').fontSize(12).font(FONT.bold).text('NET PAYABLE SALARY', 60, netY + 14);
+  doc.fontSize(8).font(FONT.regular).text('(Gross Salary minus all statutory deductions)', 60, netY + 32);
 
-  doc.fontSize(18).font('Helvetica-Bold').text(`₹${payslip.netSalary.toLocaleString()}`, 330, netY + 17, { width: 210, align: 'right' });
+  doc.fontSize(18).font(FONT.bold).text(money(payslip.netSalary), 330, netY + 17, { width: 210, align: 'right' });
 
   // Footer
-  doc.fontSize(7).font('Helvetica').fillColor('#94A3B8').text(
+  doc.fontSize(7).font(FONT.regular).fillColor('#94A3B8').text(
     'This document is computer generated by PeoplePay360 HR & Payroll Engine and requires no signature.',
     40,
     760,

@@ -3,8 +3,10 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { FileText, Plus, CheckCircle, Clock, Calendar, AlertCircle, X, ArrowRight, User, DollarSign, Shield, Info, Layers } from 'lucide-react';
 import api from '../api/client';
 import ControlPanel from '../components/ControlPanel';
+import Pagination from '../components/Pagination';
 import { formatDateDMY } from '../utils/formatters';
 import { useAuth } from '../context/AuthContext';
+import { useDebounce } from '../hooks/useDebounce';
 
 export default function Contracts() {
   const { user } = useAuth();
@@ -16,8 +18,10 @@ export default function Contracts() {
   const canCreateContract = ['ADMIN', 'HR_MANAGER', 'HR_PAYROLL_MANAGER'].includes(user?.role);
 
   const [contracts, setContracts] = useState([]);
+  const [pagination, setPagination] = useState({ total: 0, page: 1, limit: 25, totalPages: 1 });
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const debouncedSearch = useDebounce(search, 300);
   const [statusFilter, setStatusFilter] = useState('');
   const [employees, setEmployees] = useState([]);
   const [structures, setStructures] = useState([]);
@@ -35,19 +39,23 @@ export default function Contracts() {
   });
 
   useEffect(() => {
-    fetchContracts();
+    fetchContracts(1);
     fetchMetadata();
-  }, [employeeIdParam]);
+  }, [employeeIdParam, debouncedSearch, statusFilter]);
 
-  async function fetchContracts() {
+  async function fetchContracts(page = pagination.page) {
     setLoading(true);
     try {
-      const params = {};
+      const params = { page, limit: 25 };
       if (employeeIdParam) params.employeeId = employeeIdParam;
+      if (debouncedSearch.trim()) params.search = debouncedSearch.trim();
+      if (statusFilter) params.status = statusFilter;
       const res = await api.get('/contracts', { params });
-      setContracts(res.data);
+      const envelope = res.data;
+      setContracts(envelope.data ?? []);
+      setPagination({ total: envelope.total, page: envelope.page, limit: envelope.limit, totalPages: envelope.totalPages });
       if (routeContractId) {
-        const matched = res.data.find(c => String(c.id) === String(routeContractId));
+        const matched = (envelope.data ?? []).find(c => String(c.id) === String(routeContractId));
         if (matched) setSelectedContract(matched);
       }
     } catch (err) {
@@ -60,10 +68,10 @@ export default function Contracts() {
   async function fetchMetadata() {
     try {
       const [empRes, structRes] = await Promise.all([
-        api.get('/employees'),
+        api.get('/employees', { params: { limit: 200 } }),
         api.get('/salary/structures'),
       ]);
-      setEmployees(empRes.data);
+      setEmployees(empRes.data?.data ?? empRes.data ?? []);
       setStructures(structRes.data);
       if (structRes.data.length > 0) {
         setFormData((prev) => ({ ...prev, salaryStructureId: structRes.data[0].id }));
@@ -106,15 +114,8 @@ export default function Contracts() {
     }
   }
 
-  const filteredContracts = contracts.filter((c) => {
-    const q = search.toLowerCase();
-    const matchesSearch =
-      c.employee?.name?.toLowerCase().includes(q) ||
-      c.employee?.employeeId?.toLowerCase().includes(q) ||
-      c.salaryStructure?.name?.toLowerCase().includes(q);
-    const matchesStatus = !statusFilter || c.status === statusFilter;
-    return matchesSearch && matchesStatus;
-  });
+  // Contracts are filtered server-side. Status badge counts use loaded page data.
+  const filteredContracts = contracts;
 
   return (
     <div className="min-h-screen bg-[#F8F9FA] pb-12">
@@ -137,26 +138,36 @@ export default function Contracts() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 space-y-4">
         
         {/* Filter bar */}
-        <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-xs bg-white p-3 rounded-lg border border-slate-200">
-          <span className="font-semibold text-slate-600">Filter Status:</span>
-          <button
-            onClick={() => setStatusFilter('')}
-            className={`px-3 py-1 rounded transition-colors ${!statusFilter ? 'bg-[#714B67] text-white font-semibold' : 'text-slate-600 hover:bg-slate-100'}`}
-          >
-            All Contracts ({contracts.length})
-          </button>
-          <button
-            onClick={() => setStatusFilter('ACTIVE')}
-            className={`px-3 py-1 rounded transition-colors ${statusFilter === 'ACTIVE' ? 'bg-[#00A09D] text-white font-semibold' : 'text-slate-600 hover:bg-slate-100'}`}
-          >
-            Running / Active ({contracts.filter(c => c.status === 'ACTIVE').length})
-          </button>
-          <button
-            onClick={() => setStatusFilter('EXPIRED')}
-            className={`px-3 py-1 rounded transition-colors ${statusFilter === 'EXPIRED' ? 'bg-slate-700 text-white font-semibold' : 'text-slate-600 hover:bg-slate-100'}`}
-          >
-            Expired / Historical ({contracts.filter(c => c.status === 'EXPIRED').length})
-          </button>
+        <div className="flex flex-wrap items-center justify-between gap-2 sm:gap-3 text-xs bg-white p-3 rounded-lg border border-slate-200">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="font-semibold text-slate-600">Filter Status:</span>
+            <button
+              onClick={() => setStatusFilter('')}
+              className={`px-3 py-1 rounded transition-colors ${!statusFilter ? 'bg-[#714B67] text-white font-semibold' : 'text-slate-600 hover:bg-slate-100'}`}
+            >
+              All Contracts ({pagination.total})
+            </button>
+            <button
+              onClick={() => setStatusFilter('ACTIVE')}
+              className={`px-3 py-1 rounded transition-colors ${statusFilter === 'ACTIVE' ? 'bg-[#00A09D] text-white font-semibold' : 'text-slate-600 hover:bg-slate-100'}`}
+            >
+              Running / Active
+            </button>
+            <button
+              onClick={() => setStatusFilter('EXPIRED')}
+              className={`px-3 py-1 rounded transition-colors ${statusFilter === 'EXPIRED' ? 'bg-slate-700 text-white font-semibold' : 'text-slate-600 hover:bg-slate-100'}`}
+            >
+              Expired / Historical
+            </button>
+          </div>
+
+          <Pagination
+            page={pagination.page}
+            totalPages={pagination.totalPages}
+            total={pagination.total}
+            limit={pagination.limit}
+            onPageChange={(p) => fetchContracts(p)}
+          />
         </div>
 
         {/* Contracts Table */}

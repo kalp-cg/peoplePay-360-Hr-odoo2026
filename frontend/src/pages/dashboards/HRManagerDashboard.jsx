@@ -12,6 +12,13 @@ import api from '../../api/client';
 import ControlPanel from '../../components/ControlPanel';
 import { useAuth } from '../../context/AuthContext';
 
+/**
+ * The dashboard queue is a preview, not the working list: it shows the oldest
+ * few requests so the card stays readable, and Time Off remains the place to
+ * work through the full backlog.
+ */
+const QUEUE_PREVIEW_LIMIT = 5;
+
 export default function HRManagerDashboard() {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
@@ -35,8 +42,15 @@ export default function HRManagerDashboard() {
         api.get('/employees/profile-change-requests', { params: { status: 'PENDING' } }),
       ]);
       if (dashRes.status === 'fulfilled') setDashboardData(dashRes.value.data);
-      if (leavesRes.status === 'fulfilled') setPendingLeaves((leavesRes.value.data || []).filter(l => l.status === 'PENDING'));
-      if (reqsRes.status === 'fulfilled') setProfileRequests(reqsRes.value.data || []);
+      if (leavesRes.status === 'fulfilled') {
+        const raw = leavesRes.value.data?.data || leavesRes.value.data || [];
+        const arr = Array.isArray(raw) ? raw : [];
+        setPendingLeaves(arr.filter(l => l.status === 'PENDING'));
+      }
+      if (reqsRes.status === 'fulfilled') {
+        const rawReqs = reqsRes.value.data?.data || reqsRes.value.data || [];
+        setProfileRequests(Array.isArray(rawReqs) ? rawReqs : []);
+      }
     } catch (err) {
       console.error('Failed to load HR Dashboard:', err);
     } finally {
@@ -329,6 +343,11 @@ export default function HRManagerDashboard() {
               <h3 className="font-semibold text-slate-800 text-sm">
                 Pending Time Off & Leave Approvals Queue
               </h3>
+              {pendingLeaves.length > QUEUE_PREVIEW_LIMIT && (
+                <span className="text-[11px] font-medium text-slate-500 bg-slate-100 border border-slate-200 rounded px-1.5 py-0.5">
+                  Showing {QUEUE_PREVIEW_LIMIT} of {pendingLeaves.length}
+                </span>
+              )}
             </div>
             <Link to="/time-off" className="text-xs text-[#714B67] hover:underline flex items-center gap-1">
               <span>View All Leaves</span>
@@ -356,7 +375,7 @@ export default function HRManagerDashboard() {
                     </td>
                   </tr>
                 ) : (
-                  pendingLeaves.map((l) => (
+                  pendingLeaves.slice(0, QUEUE_PREVIEW_LIMIT).map((l) => (
                     <tr key={l.id} className="hover:bg-slate-50">
                       <td className="px-4 py-3">
                         <span className="font-semibold text-slate-900">{l.employee?.name}</span>
@@ -396,6 +415,17 @@ export default function HRManagerDashboard() {
                       </td>
                     </tr>
                   ))
+                )}
+                {pendingLeaves.length > QUEUE_PREVIEW_LIMIT && (
+                  <tr className="bg-slate-50/60">
+                    <td colSpan={6} className="px-4 py-3 text-center text-slate-500">
+                      {pendingLeaves.length - QUEUE_PREVIEW_LIMIT} more request
+                      {pendingLeaves.length - QUEUE_PREVIEW_LIMIT === 1 ? '' : 's'} awaiting approval.{' '}
+                      <Link to="/time-off" className="text-[#714B67] font-semibold hover:underline">
+                        Open the full queue in Time Off
+                      </Link>
+                    </td>
+                  </tr>
                 )}
               </tbody>
             </table>

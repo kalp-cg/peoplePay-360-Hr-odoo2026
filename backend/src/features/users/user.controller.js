@@ -20,9 +20,19 @@ class UserController {
     }
   }
 
+  async getProvisionOptions(req, res, next) {
+    try {
+      const { role } = req.query;
+      const options = await userService.getProvisionOptions(role);
+      return sendSuccess(res, options);
+    } catch (err) {
+      next(err);
+    }
+  }
+
   async create(req, res, next) {
     try {
-      const { name, email, role } = req.body;
+      const { name, email } = req.body;
       if (!name || !email) {
         return sendError(res, 'Name and email are required.', 400, 'MISSING_FIELDS');
       }

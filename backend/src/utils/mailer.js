@@ -4,6 +4,22 @@ const logger = require('./logger');
 
 let transporter = null;
 
+/** True only when credentials are actually present, not merely declared in .env. */
+function isConfigured() {
+  return Boolean((process.env.SMTP_USER || '').trim() && (process.env.SMTP_PASS || '').trim());
+}
+
+function assertConfigured() {
+  if (!isConfigured()) {
+    throw {
+      statusCode: 503,
+      code: 'EMAIL_NOT_CONFIGURED',
+      message:
+        'Email delivery is not configured. Set SMTP_USER and SMTP_PASS (a Gmail app password) in backend/.env and restart the server.',
+    };
+  }
+}
+
 function getTransporter() {
   if (!transporter) {
     const user = process.env.SMTP_USER;
@@ -55,6 +71,7 @@ function formatINR(val) {
  * Send an email with optional attachments
  */
 async function sendMail({ to, subject, html, text, attachments = [] }) {
+  assertConfigured();
   const transport = getTransporter();
   const from = process.env.SMTP_FROM || `"PeoplePay360 HR & Payroll" <${process.env.SMTP_USER || 'no-reply@peoplepay360.com'}>`;
 
@@ -75,8 +92,13 @@ async function sendMail({ to, subject, html, text, attachments = [] }) {
  * Dispatches an official payslip email with a branded HTML template and attached PDF
  */
 async function sendPayslipEmail(payslip) {
+  assertConfigured();
   if (!payslip || !payslip.employee || !payslip.employee.email) {
-    throw new Error('Invalid payslip or employee email missing');
+    throw {
+      statusCode: 400,
+      code: 'MISSING_EMPLOYEE_EMAIL',
+      message: 'This payslip has no employee email address on file.',
+    };
   }
 
   const emp = payslip.employee;
@@ -93,8 +115,10 @@ async function sendPayslipEmail(payslip) {
     logger.warn(`Failed to generate PDF buffer for payslip #${payslip.id}: ${pdfErr.message}`);
   }
 
+  // GROSS and NET have their own summary rows further down, so they are excluded
+  // here to avoid listing the same amount twice.
   const earnings = (payslip.payslipLines || []).filter(
-    (l) => l.category === 'BASIC' || l.category === 'ALLOWANCE' || l.category === 'GROSS'
+    (l) => l.category === 'BASIC' || l.category === 'ALLOWANCE'
   );
   const deductions = (payslip.payslipLines || []).filter(
     (l) => l.category === 'DEDUCTION'
@@ -277,6 +301,8 @@ PeoplePay360 HR & Payroll Team
 }
 
 module.exports = {
+  isConfigured,
+  assertConfigured,
   getTransporter,
   sendMail,
   sendPayslipEmail,

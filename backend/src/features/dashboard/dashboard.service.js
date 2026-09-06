@@ -39,7 +39,9 @@ class DashboardService {
     // HR_MANAGER is a line manager who manages direct subordinates.
     // ADMIN, HR_PAYROLL_MANAGER, and HR_PAYROLL_USER oversee enterprise-wide compensation & payroll.
     let subordinateIds = null;
-    if (user && !['ADMIN', 'HR_PAYROLL_MANAGER', 'HR_PAYROLL_USER'].includes(user.role) && scope !== 'all') {
+    if (user && user.role === 'EMPLOYEE' && user.employeeId) {
+      subordinateIds = [user.employeeId];
+    } else if (user && !['ADMIN', 'HR_MANAGER', 'HR_PAYROLL_MANAGER', 'HR_PAYROLL_USER'].includes(user.role) && scope === 'subordinates') {
       const employeeService = require('../employees/employee.service');
       subordinateIds = await employeeService.getSubordinateIdsForUser(user);
     }

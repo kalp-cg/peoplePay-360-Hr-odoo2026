@@ -37,9 +37,10 @@ export default function MyProfile() {
   async function fetchProfileData() {
     setLoading(true);
     try {
-      // 1. Get employee data
+      // 1. Get employee data (/employees returns a { data, total, page, ... } envelope)
       const empRes = await api.get('/employees');
-      const self = empRes.data.find(e => e.id === user?.employeeId) || empRes.data[0];
+      const empList = Array.isArray(empRes.data) ? empRes.data : (empRes.data?.data ?? []);
+      const self = empList.find(e => e.id === user?.employeeId) || empList[0];
       if (self) {
         const fullDetail = await api.get(`/employees/${self.id}`);
         setEmployee(fullDetail.data);

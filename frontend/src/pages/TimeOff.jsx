@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { Plane, Plus, CheckCircle, XCircle, Clock, Check, AlertCircle, X } from 'lucide-react';
 import api from '../api/client';
 import ControlPanel from '../components/ControlPanel';
+import Pagination from '../components/Pagination';
 import { useAuth } from '../context/AuthContext';
 import { formatPeriodRange } from '../utils/formatters';
 
@@ -17,6 +18,8 @@ export default function TimeOff() {
   const [allocations, setAllocations] = useState([]);
   const [types, setTypes] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [reqPagination, setReqPagination] = useState({ total: 0, page: 1, limit: 25, totalPages: 1 });
+  const [allocPagination, setAllocPagination] = useState({ total: 0, page: 1, limit: 25, totalPages: 1 });
 
   // Submit Request Modal
   const [showRequestModal, setShowRequestModal] = useState(false);
@@ -67,28 +70,41 @@ export default function TimeOff() {
     setReqForm(nextForm);
   }
 
-  async function fetchData() {
+  async function fetchData(reqPage = 1, allocPage = 1) {
     setLoading(true);
     try {
       const params = {};
       if (employeeIdParam) params.employeeId = employeeIdParam;
 
       if (activeTab === 'requests') {
-        const res = await api.get('/time-off/requests', { params });
-        setRequests(res.data);
+        const res = await api.get('/time-off/requests', { params: { ...params, page: reqPage, limit: 25 } });
+        const envelope = res.data;
+        if (envelope && Array.isArray(envelope.data)) {
+          setRequests(envelope.data);
+          setReqPagination({ total: envelope.total, page: envelope.page, limit: envelope.limit, totalPages: envelope.totalPages });
+        } else {
+          setRequests(Array.isArray(envelope) ? envelope : []);
+        }
       } else if (activeTab === 'allocations') {
-        const res = await api.get('/time-off/allocations', { params });
-        setAllocations(res.data);
+        const res = await api.get('/time-off/allocations', { params: { ...params, page: allocPage, limit: 25 } });
+        const envelope = res.data;
+        if (envelope && Array.isArray(envelope.data)) {
+          setAllocations(envelope.data);
+          setAllocPagination({ total: envelope.total, page: envelope.page, limit: envelope.limit, totalPages: envelope.totalPages });
+        } else {
+          setAllocations(Array.isArray(envelope) ? envelope : []);
+        }
       } else if (activeTab === 'types') {
         const res = await api.get('/time-off/types');
-        setTypes(res.data);
+        setTypes(Array.isArray(res.data) ? res.data : (res.data?.data || []));
       }
 
       // Always populate allocations for Employee balance cards
       if (user?.role === 'EMPLOYEE' || activeTab === 'requests') {
         try {
           const allocRes = await api.get('/time-off/allocations', { params });
-          setAllocations(allocRes.data || []);
+          const aData = allocRes.data?.data || allocRes.data || [];
+          setAllocations(Array.isArray(aData) ? aData : []);
         } catch (err) {
           console.warn('Allocations fetch error:', err);
         }
@@ -96,12 +112,14 @@ export default function TimeOff() {
 
       // fetch types for dropdown
       const tRes = await api.get('/time-off/types');
-      setTypes(tRes.data);
-      if (tRes.data.length > 0 && !reqForm.timeOffTypeId) {
-        setReqForm((prev) => ({ ...prev, timeOffTypeId: tRes.data[0].id }));
+      const typesData = Array.isArray(tRes.data) ? tRes.data : (tRes.data?.data || []);
+      setTypes(typesData);
+      if (typesData.length > 0 && !reqForm.timeOffTypeId) {
+        setReqForm((prev) => ({ ...prev, timeOffTypeId: typesData[0].id }));
       }
       const empRes = await api.get('/employees');
-      setEmployees(empRes.data);
+      const empsData = Array.isArray(empRes.data) ? empRes.data : (empRes.data?.data || []);
+      setEmployees(empsData);
     } catch (err) {
       console.error(err);
     } finally {
@@ -230,41 +248,63 @@ export default function TimeOff() {
         )}
 
         {/* Navigation Tabs */}
-        <div className="bg-white border border-slate-200 rounded-lg px-4 flex gap-6 text-xs font-semibold shadow-sm overflow-x-auto">
-          <button
-            onClick={() => setActiveTab('requests')}
-            className={`py-3.5 border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${
-              activeTab === 'requests'
-                ? 'border-[#714B67] text-[#714B67]'
-                : 'border-transparent text-slate-500 hover:text-slate-800'
-            }`}
-          >
-            <Clock className="w-4 h-4" />
-            <span>{isEmployee ? 'My Leave Requests' : 'Time Off Requests'}</span>
-          </button>
-          <button
-            onClick={() => setActiveTab('allocations')}
-            className={`py-3.5 border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${
-              activeTab === 'allocations'
-                ? 'border-[#714B67] text-[#714B67]'
-                : 'border-transparent text-slate-500 hover:text-slate-800'
-            }`}
-          >
-            <CheckCircle className="w-4 h-4" />
-            <span>{isHR ? 'Leave Allocations Ledger' : 'My Leave Balances'}</span>
-          </button>
-          {isHR && (
+        <div className="bg-white border border-slate-200 rounded-lg px-4 flex flex-wrap items-center justify-between gap-3 text-xs font-semibold shadow-sm">
+          <div className="flex gap-6 overflow-x-auto">
             <button
-              onClick={() => setActiveTab('types')}
+              onClick={() => setActiveTab('requests')}
               className={`py-3.5 border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${
-                activeTab === 'types'
+                activeTab === 'requests'
                   ? 'border-[#714B67] text-[#714B67]'
                   : 'border-transparent text-slate-500 hover:text-slate-800'
               }`}
             >
-              <Plane className="w-4 h-4" />
-              <span>Time Off Types</span>
+              <Clock className="w-4 h-4" />
+              <span>{isEmployee ? 'My Leave Requests' : 'Time Off Requests'}</span>
             </button>
+            <button
+              onClick={() => setActiveTab('allocations')}
+              className={`py-3.5 border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${
+                activeTab === 'allocations'
+                  ? 'border-[#714B67] text-[#714B67]'
+                  : 'border-transparent text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              <CheckCircle className="w-4 h-4" />
+              <span>{isHR ? 'Leave Allocations Ledger' : 'My Leave Balances'}</span>
+            </button>
+            {isHR && (
+              <button
+                onClick={() => setActiveTab('types')}
+                className={`py-3.5 border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${
+                  activeTab === 'types'
+                    ? 'border-[#714B67] text-[#714B67]'
+                    : 'border-transparent text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                <Plane className="w-4 h-4" />
+                <span>Time Off Types</span>
+              </button>
+            )}
+          </div>
+
+          {/* Right: Sleek Top Pager */}
+          {activeTab === 'requests' && (
+            <Pagination
+              page={reqPagination.page}
+              totalPages={reqPagination.totalPages}
+              total={reqPagination.total}
+              limit={reqPagination.limit}
+              onPageChange={(p) => fetchData(p, allocPagination.page)}
+            />
+          )}
+          {activeTab === 'allocations' && (
+            <Pagination
+              page={allocPagination.page}
+              totalPages={allocPagination.totalPages}
+              total={allocPagination.total}
+              limit={allocPagination.limit}
+              onPageChange={(p) => fetchData(reqPagination.page, p)}
+            />
           )}
         </div>
 
@@ -284,7 +324,7 @@ export default function TimeOff() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-slate-700">
-                {requests.map((req) => (
+                {(requests || []).map((req) => (
                   <tr key={req.id} className="hover:bg-slate-50 transition-colors">
                     {!isEmployee && (
                       <td className="px-4 py-3 font-medium text-slate-900">
@@ -355,7 +395,7 @@ export default function TimeOff() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-slate-700">
-                {allocations.map((a) => (
+                {(allocations || []).map((a) => (
                   <tr key={a.id} className="hover:bg-slate-50 transition-colors">
                     {!isEmployee && (
                       <td className="px-4 py-3 font-medium text-slate-900">

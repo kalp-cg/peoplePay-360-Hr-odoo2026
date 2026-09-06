@@ -151,8 +151,10 @@ async function main() {
           { name: 'Basic Salary', code: 'BASIC', category: 'BASIC', sequence: 1, calculationType: 'PERCENTAGE', valueExpression: '0.60 * WAGE', active: true },
           { name: 'House Rent Allowance', code: 'HRA', category: 'ALLOWANCE', sequence: 2, calculationType: 'PERCENTAGE', valueExpression: '0.20 * BASIC', active: true },
           { name: 'Standard Special Allowance', code: 'ALLOWANCE', category: 'ALLOWANCE', sequence: 3, calculationType: 'PERCENTAGE', valueExpression: '0.28 * WAGE', active: true },
-          { name: 'Provident Fund (Employee)', code: 'PF', category: 'DEDUCTION', sequence: 4, calculationType: 'PERCENTAGE', valueExpression: '0.12 * BASIC', active: true },
-          { name: 'Professional Tax', code: 'TAX', category: 'DEDUCTION', sequence: 5, calculationType: 'FIXED', valueExpression: '200', active: true },
+          { name: 'Gross Salary', code: 'GROSS', category: 'GROSS', sequence: 4, calculationType: 'FORMULA', valueExpression: 'BASIC + HRA + ALLOWANCE', active: true },
+          { name: 'Provident Fund (Employee)', code: 'PF', category: 'DEDUCTION', sequence: 5, calculationType: 'PERCENTAGE', valueExpression: '0.12 * BASIC', active: true },
+          { name: 'Professional Tax', code: 'TAX', category: 'DEDUCTION', sequence: 6, calculationType: 'FIXED', valueExpression: '200', active: true },
+          { name: 'Net Salary', code: 'NET', category: 'NET', sequence: 7, calculationType: 'FORMULA', valueExpression: 'GROSS - PF - TAX', active: true },
         ],
       },
     },
@@ -204,6 +206,21 @@ async function main() {
     },
   });
   createdEmployees.push({ ...superAdminEmp, wage: 120000, role: 'ADMIN' });
+
+  // EMP000 is an ACTIVE employee, so it needs its own contract like everybody else.
+  // Without one, payroll either skips it or (worse) borrows another employee's wage.
+  createdContracts.push(
+    await prisma.contract.create({
+      data: {
+        employeeId: superAdminEmp.id,
+        startDate: new Date('2024-01-01T00:00:00.000Z'),
+        wage: 120000,
+        salaryStructureId: standardStructure.id,
+        status: 'ACTIVE',
+        notes: 'Enterprise employment contract for System Administrator (ADMIN)',
+      },
+    })
+  );
 
   // Standalone Super-Admin (User ID 1) linked to EMP000
   const superAdmin = await prisma.user.create({
@@ -355,9 +372,11 @@ async function main() {
     });
     createdContracts.push(contract);
 
+    // takenDays starts at zero and is derived from approved requests further down,
+    // so the balance on screen always matches the leave history behind it.
     createdAllocations.push(
-      { employeeId: emp.id, timeOffTypeId: typePaid.id, allocatedDays: 20, remainingDays: 17, takenDays: 3, year: 2026 },
-      { employeeId: emp.id, timeOffTypeId: typeSick.id, allocatedDays: 12, remainingDays: 11, takenDays: 1, year: 2026 }
+      { employeeId: emp.id, timeOffTypeId: typePaid.id, allocatedDays: 20, remainingDays: 20, takenDays: 0, year: 2026 },
+      { employeeId: emp.id, timeOffTypeId: typeSick.id, allocatedDays: 12, remainingDays: 12, takenDays: 0, year: 2026 }
     );
   }
 
@@ -389,6 +408,26 @@ async function main() {
     });
   }
   await prisma.timeOffRequest.createMany({ data: timeOffRequests });
+
+  // Consume allocation balances from the approved requests that were just created.
+  // This mirrors the runtime rule in timeoff.repository.approveRequest(), so the
+  // Time Off screen and the leave balance cards can never disagree.
+  const approvedTotals = await prisma.timeOffRequest.groupBy({
+    by: ['employeeId', 'timeOffTypeId'],
+    where: { status: 'APPROVED' },
+    _sum: { durationDays: true },
+  });
+  for (const total of approvedTotals) {
+    const taken = total._sum.durationDays || 0;
+    const allocation = await prisma.timeOffAllocation.findFirst({
+      where: { employeeId: total.employeeId, timeOffTypeId: total.timeOffTypeId, year: 2026 },
+    });
+    if (!allocation) continue;
+    await prisma.timeOffAllocation.update({
+      where: { id: allocation.id },
+      data: { takenDays: taken, remainingDays: Math.max(0, allocation.allocatedDays - taken) },
+    });
+  }
 
   // 6. Seed Attendance Records
   console.log('[6/6] Seeding Attendance Logs & Multi-Status Payruns...');
@@ -619,8 +658,15 @@ async function main() {
 
     for (let idx = 0; idx < prDef.empSubset.length; idx++) {
       const emp = prDef.empSubset[idx];
-      const contract = createdContracts.find(c => c.employeeId === emp.id) || createdContracts[0];
-      
+      // Never borrow another employee's contract: a payslip must be computed from
+      // the contract that belongs to its own employee, or not generated at all.
+      const contract = createdContracts.find(c => c.employeeId === emp.id);
+      if (!contract) {
+        console.warn(`  ! Skipping payslip for ${emp.employeeId || emp.id} - no contract on record`);
+        continue;
+      }
+
+
       const effectiveWage = Math.round(emp.wage * prDef.wageMultiplier);
       const basic = Math.round(effectiveWage * 0.60);
       const hra = Math.round(basic * 0.20);
@@ -658,8 +704,10 @@ async function main() {
         { payslipId: slip.id, code: 'BASIC', name: 'Basic Salary', category: 'BASIC', sequence: 1, amount: basic },
         { payslipId: slip.id, code: 'HRA', name: 'House Rent Allowance', category: 'ALLOWANCE', sequence: 2, amount: hra },
         { payslipId: slip.id, code: 'ALLOWANCE', name: 'Standard Special Allowance', category: 'ALLOWANCE', sequence: 3, amount: allowance },
-        { payslipId: slip.id, code: 'PF', name: 'Provident Fund (Employee)', category: 'DEDUCTION', sequence: 4, amount: pf },
-        { payslipId: slip.id, code: 'TAX', name: 'Professional Tax', category: 'DEDUCTION', sequence: 5, amount: tax }
+        { payslipId: slip.id, code: 'GROSS', name: 'Gross Salary', category: 'GROSS', sequence: 4, amount: gross },
+        { payslipId: slip.id, code: 'PF', name: 'Provident Fund (Employee)', category: 'DEDUCTION', sequence: 5, amount: pf },
+        { payslipId: slip.id, code: 'TAX', name: 'Professional Tax', category: 'DEDUCTION', sequence: 6, amount: tax },
+        { payslipId: slip.id, code: 'NET', name: 'Net Salary', category: 'NET', sequence: 7, amount: net }
       );
     }
 
